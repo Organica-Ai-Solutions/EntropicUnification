@@ -1,0 +1,21 @@
+# Compiled
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# Results and artifacts
+results/
+**/checkpoint_*.pt
+**/training_logs.json
+**/final_results.pt
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

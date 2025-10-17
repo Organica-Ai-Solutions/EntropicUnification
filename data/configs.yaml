@@ -1,0 +1,53 @@
+# Physical Constants
+constants:
+  planck_length: 1.616255e-35  # meters
+  planck_time: 5.391247e-44    # seconds
+  speed_of_light: 299792458    # meters per second
+  gravitational_constant: 6.67430e-11  # m^3 kg^-1 s^-2
+  reduced_planck_constant: 1.054571817e-34  # J⋅s
+
+# Spacetime Configuration
+spacetime:
+  dimensions: 4
+  lattice_size: 64
+  spatial_resolution: 5.0e-2
+  dx: 5.0e-2
+
+# Quantum Configuration
+quantum:
+  num_qubits: 4
+  circuit_depth: 4
+  entanglement_cutoff: 1.0e-10
+  device: "default.qubit"
+  shots: null
+  seed: 1234
+
+# Optimization Parameters
+optimization:
+  learning_rate: 1.0e-3
+  steps: 1000
+  checkpoint_interval: 100
+  log_interval: 10
+  metric_grad_clip: 10.0
+  loss_weights:
+    einstein: 1.0
+    entropy: 1.0
+    curvature: 0.1
+    smoothness: 0.1
+
+# Geometric Parameters
+geometry:
+  dx: 5.0e-2
+  curvature_tolerance: 1.0e-6
+  metric_regularization: 1.0e-4
+  initial_metric: "minkowski"
+
+# Output Configuration
+output:
+  save_frequency: 100
+  log_level: "INFO"
+  results_dir: "results"
+  save_formats:
+    - "numpy"
+    - "torch"
+    - "json"
