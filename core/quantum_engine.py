@@ -43,27 +43,70 @@ class QuantumEngine:
     # ------------------------------------------------------------------
     def _build_ansatz(self):
         num_qubits = self.num_qubits
-        depth = self.depth
-
+        depth = self.config.depth
+        
+        # Calculate number of parameters needed for the enhanced ansatz
+        # 3 rotations (RY, RZ, RX) per qubit per layer
+        # Plus 2 parameters for each entangling gate (CRX, CRZ)
+        # Plus 1 parameter for time evolution per qubit per layer
+        self.params_per_qubit = 4  # RY, RZ, RX, time evolution
+        self.params_per_entangler = 2  # CRX, CRZ
+        
+        # Parameters: [rotations, entanglers, time_evolution]
+        total_params = (self.params_per_qubit * num_qubits + 
+                       self.params_per_entangler * (num_qubits - 1)) * depth
+        
         @qml.qnode(self.device, interface=self.config.interface, diff_method="best")
         def circuit(weights: torch.Tensor, time: float, psi0: Optional[torch.Tensor] = None):
             if psi0 is not None:
                 qml.QubitStateVector(psi0, wires=range(num_qubits))
             else:
-                qml.BasisState(torch.zeros(num_qubits, dtype=torch.int64), wires=range(num_qubits))
-
-            param_block = weights.reshape(depth, 2, num_qubits)
-
+                # Initialize in a more complex state than just |0...0>
+                for i in range(num_qubits):
+                    qml.Hadamard(wires=i)
+                
+                # Add some initial entanglement
+                for i in range(0, num_qubits - 1, 2):
+                    qml.CZ(wires=[i, i+1])
+            
+            # Reshape weights for the circuit
+            weights = weights.reshape(depth, -1)
+            param_idx = 0
+            
             for layer in range(depth):
-                for wire in range(num_qubits):
-                    qml.RY(param_block[layer, 0, wire], wires=wire)
-
-                for wire in range(num_qubits - 1):
-                    qml.CNOT(wires=[wire, wire + 1])
-
-                for wire in range(num_qubits):
-                    qml.RZ(param_block[layer, 1, wire] * time, wires=wire)
-
+                # Single-qubit rotations
+                for qubit in range(num_qubits):
+                    # More expressive single-qubit rotations
+                    qml.RY(weights[layer, param_idx], wires=qubit)
+                    param_idx += 1
+                    qml.RZ(weights[layer, param_idx], wires=qubit)
+                    param_idx += 1
+                    qml.RX(weights[layer, param_idx], wires=qubit)
+                    param_idx += 1
+                
+                # Entangling layers with different connectivity
+                # Nearest-neighbor entanglement
+                for qubit in range(num_qubits - 1):
+                    qml.CNOT(wires=[qubit, qubit + 1])
+                    qml.CRZ(weights[layer, param_idx], wires=[qubit, qubit + 1])
+                    param_idx += 1
+                    qml.CRX(weights[layer, param_idx], wires=[qubit, qubit + 1])
+                    param_idx += 1
+                
+                # Add long-range entanglement every other layer
+                if layer % 2 == 0 and num_qubits > 2:
+                    for offset in range(2, min(4, num_qubits)):  # Connect up to 3 qubits apart
+                        for qubit in range(num_qubits - offset):
+                            qml.CZ(wires=[qubit, qubit + offset])
+                
+                # Time evolution in the computational basis
+                for qubit in range(num_qubits):
+                    qml.RZ(weights[layer, param_idx] * time, wires=qubit)
+                    param_idx += 1
+                
+                # Reset parameter index for next layer
+                param_idx = 0
+            
             return qml.state()
 
         return circuit
