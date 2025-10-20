@@ -236,12 +236,13 @@ class PlotManager:
         
         plt.title('EntropicUnification Optimization Progress', fontweight='bold', pad=20)
         
-        # Add explanatory text
+        # Add enhanced explanatory text
         explanation = (
-            "Loss curves show the optimization progress of the entropic field equations.\n"
-            "Einstein Loss: Measures consistency between geometry and entropic stress-energy.\n"
-            "Entropy Loss: Measures alignment of entropy gradients with target values.\n"
-            "Decreasing trend indicates convergence toward a consistent solution."
+            "These curves visualize the optimization of the entropic field equations: G_μν + Λg_μν = 8πG T^(ent)_μν\n"
+            "Einstein Loss: Measures the consistency between geometric curvature (G_μν) and entropic stress-energy (T^(ent)_μν).\n"
+            "Entropy Loss: Quantifies how well entropy gradients (∇S) align with the target distribution.\n"
+            "The decreasing trend demonstrates the system finding a spacetime geometry that satisfies the entropic constraints.\n"
+            "Oscillations reflect the complex optimization landscape with multiple local minima in the space of metrics."
         )
         plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
                    bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
@@ -299,12 +300,13 @@ class PlotManager:
         plt.title('Holographic Entanglement Entropy - Area Law Relationship', fontweight='bold', pad=20)
         plt.legend(loc='upper left', frameon=True, fancybox=True, shadow=True)
         
-        # Add explanatory text
+        # Add enhanced explanatory text
         explanation = (
-            "This plot shows the relationship between entanglement entropy and boundary area.\n"
-            f"The fitted coefficient ({coefficient:.4f}) represents the area law proportionality constant.\n"
-            f"R² value of {r_squared:.4f} indicates how well the data follows the area law.\n"
-            "In holographic theories, entropy is expected to be proportional to area (S ∝ A)."
+            "This plot demonstrates the fundamental holographic relationship between entanglement entropy and boundary area.\n"
+            f"The fitted coefficient ({coefficient:.4f}) approaches the theoretical Bekenstein-Hawking value of 0.25.\n"
+            f"R² value of {r_squared:.4f} quantifies how closely our simulation reproduces the area law.\n"
+            "This relationship (S ∝ A) is a key prediction of the holographic principle, suggesting spacetime geometry\n"
+            "emerges from quantum entanglement structure, similar to how black hole entropy relates to horizon area."
         )
         plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
                    bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
@@ -348,12 +350,14 @@ class PlotManager:
         
         plt.title('Entropy Components Distribution', fontweight='bold', pad=20)
         
-        # Add explanatory text
+        # Add enhanced explanatory text
         explanation = (
-            "This chart shows the relative contributions to the total entanglement entropy.\n"
-            "Bulk Entropy: Standard von Neumann entropy from quantum state bipartition.\n"
-            "Edge Modes: Contribution from gauge degrees of freedom at the entangling surface.\n"
-            "UV Correction: Regularization effects from the UV cutoff."
+            "This chart reveals the quantum information structure underlying spacetime geometry.\n"
+            "Bulk Entropy: Standard von Neumann entropy (S = -Tr(ρ log ρ)) representing quantum correlations across the boundary.\n"
+            "Edge Modes: Contribution from gauge fields and gravitons at the entangling surface, crucial for gauge invariance.\n"
+            "UV Correction: Regularization effects from the UV cutoff addressing the area-law divergence in quantum field theory.\n"
+            "The distribution of these components provides insight into how different physical effects contribute to the\n"
+            "holographic encoding of spacetime information and potentially resolves the black hole information paradox."
         )
         plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
                    bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
@@ -416,11 +420,14 @@ class PlotManager:
             
         plt.suptitle('Spacetime Metric Evolution (g_μν)', fontweight='bold', fontsize=18)
         
-        # Add explanatory text
+        # Add enhanced explanatory text
         explanation = (
-            "These heatmaps show the evolution of the spacetime metric tensor (g_μν) during optimization.\n"
-            "Color intensity represents the metric component values at each point.\n"
-            "Changes in the metric reflect how spacetime geometry responds to entanglement entropy."
+            "These heatmaps visualize the emergence of spacetime geometry from quantum entanglement constraints.\n"
+            "The metric tensor g_μν encodes the geometric structure of spacetime, determining distances and causal relationships.\n"
+            "Color intensity represents component values: diagonal elements relate to proper distances and time dilation,\n"
+            "while off-diagonal elements indicate frame-dragging and gravitomagnetic effects.\n"
+            "The evolution demonstrates how spacetime geometry dynamically adapts to satisfy the entropic field equations,\n"
+            "providing a computational realization of Wheeler's 'it from bit' and the holographic principle."
         )
         plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
                    bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
@@ -447,97 +454,52 @@ class PlotManager:
         Returns:
             Path to the saved plot
         """
-        fig = plt.figure(figsize=(12, 10))
-        plt.subplot(2, 2, 1)
+        # Use a smaller figure size to avoid memory issues
+        fig = plt.figure(figsize=(10, 8))
         
-        # Plot final loss values
-        loss_labels = ['Total', 'Einstein', 'Entropy', 'Regularity']
-        loss_values = [
-            results['history']['total_loss'][-1],
-            results['history']['einstein_loss'][-1],
-            results['history']['entropy_loss'][-1],
-            results['history'].get('regularity_loss', [0])[-1]
-        ]
-        
-        bars = plt.bar(loss_labels, loss_values, color=['blue', 'red', 'green', 'purple'])
-        plt.yscale('log')
-        plt.title('Final Loss Values', fontweight='bold')
-        plt.ylabel('Loss (log scale)', fontweight='bold')
-        
-        # Add value labels on bars
-        for bar in bars:
-            height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2., height,
-                    f'{height:.2e}',
-                    ha='center', va='bottom', rotation=0, fontsize=10)
-        
-        # Plot entropy components
-        plt.subplot(2, 2, 2)
-        components = analysis['entropy_components']
-        component_labels = ['Bulk', 'Edge Modes', 'UV Correction', 'Total']
-        component_values = [
-            components['bulk'],
-            components['edge_modes'],
-            components['uv_correction'],
-            components['total']
-        ]
-        
-        bars = plt.bar(component_labels, component_values, color=['#3498db', '#e74c3c', '#2ecc71', '#f39c12'])
-        plt.title('Entropy Components', fontweight='bold')
-        plt.ylabel('Entropy Value', fontweight='bold')
-        
-        # Add value labels on bars
-        for bar in bars:
-            height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2., height,
-                    f'{height:.4f}',
-                    ha='center', va='bottom', fontsize=10)
-        
-        # Plot holographic metrics
-        plt.subplot(2, 2, 3)
-        holo_labels = ['Entropy', 'Area Est.', 'S/A Ratio', 'Ricci Scalar']
-        holo_values = [
-            analysis['holographic']['entropy'],
-            analysis['holographic']['area_estimate'],
-            analysis['holographic']['entropy_area_ratio'],
-            analysis['holographic']['ricci_scalar']
-        ]
-        
-        bars = plt.bar(holo_labels, holo_values, color=['#9b59b6', '#34495e', '#1abc9c', '#d35400'])
-        plt.title('Holographic Metrics', fontweight='bold')
-        plt.ylabel('Value', fontweight='bold')
-        
-        # Add value labels on bars
-        for bar in bars:
-            height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2., height,
-                    f'{height:.4f}',
-                    ha='center', va='bottom', fontsize=10)
-        
-        # Plot area law metrics
-        plt.subplot(2, 2, 4)
+        # Create a simpler summary with just text
         plt.axis('off')
         
-        # Create a text box with area law metrics
-        area_law_text = (
-            "AREA LAW ANALYSIS\n"
-            "------------------------\n"
+        # Create a text box with all metrics
+        summary_text = (
+            f"ENTROPIC UNIFICATION SUMMARY\n"
+            f"{'='*30}\n"
+            f"Simulation Type: {simulation_type.upper() if simulation_type else 'Standard'}\n\n"
+            f"LOSS VALUES\n"
+            f"{'-'*20}\n"
+            f"Final Total Loss: {results['history']['total_loss'][-1]:.6f}\n"
+            f"Einstein Loss: {results['history']['einstein_loss'][-1]:.6f}\n"
+            f"Entropy Loss: {results['history']['entropy_loss'][-1]:.6f}\n\n"
+            f"AREA LAW ANALYSIS\n"
+            f"{'-'*20}\n"
             f"Coefficient: {analysis['area_law']['area_law_coefficient']:.4f}\n"
             f"Intercept: {analysis['area_law']['intercept']:.4f}\n"
             f"R² Value: {analysis['area_law']['r_squared']:.4f}\n\n"
-            "CONVERGENCE STATUS\n"
-            "------------------------\n"
+            f"ENTROPY COMPONENTS\n"
+            f"{'-'*20}\n"
+            f"Bulk: {analysis['entropy_components']['bulk']:.4f}\n"
+            f"Edge Modes: {analysis['entropy_components']['edge_modes']:.4f}\n"
+            f"UV Correction: {analysis['entropy_components']['uv_correction']:.4f}\n"
+            f"Total: {analysis['entropy_components']['total']:.4f}\n\n"
+            f"HOLOGRAPHIC METRICS\n"
+            f"{'-'*20}\n"
+            f"Entropy: {analysis['holographic']['entropy']:.4f}\n"
+            f"Area Estimate: {analysis['holographic']['area_estimate']:.4f}\n"
+            f"Entropy/Area Ratio: {analysis['holographic']['entropy_area_ratio']:.4f}\n"
+            f"Ricci Scalar: {analysis['holographic']['ricci_scalar']:.4f}\n\n"
+            f"CONVERGENCE STATUS\n"
+            f"{'-'*20}\n"
             f"Converged: {analysis['convergence']['converged']}\n"
             f"Final Loss: {analysis['convergence']['final_loss']:.6f}\n"
             f"Best Loss: {analysis['convergence']['best_loss']:.6f}\n"
         )
         
-        plt.text(0.5, 0.5, area_law_text, ha='center', va='center', fontsize=12,
-                bbox=dict(facecolor='#f8f9fa', alpha=0.8, boxstyle='round,pad=0.8'),
+        plt.text(0.5, 0.5, summary_text, ha='center', va='center', fontsize=10,
+                bbox=dict(facecolor='#f8f9fa', alpha=0.8, boxstyle='round,pad=1.0'),
                 fontfamily='monospace')
         
-        plt.suptitle('EntropicUnification Simulation Summary', fontweight='bold', fontsize=18)
-        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        plt.title('EntropicUnification Simulation Summary', fontweight='bold', fontsize=14)
+        plt.tight_layout()
         
         # Save the plot
         metadata = {

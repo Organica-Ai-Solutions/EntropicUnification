@@ -273,7 +273,8 @@ class LossFunctions:
             return False
             
         # Update best loss if current loss is better
-        loss_val = total_loss.item()
+        # Ensure we're using the real part of the loss for comparison
+        loss_val = float(torch.real(total_loss).item())
         if loss_val < self.best_loss:
             self.best_loss = loss_val
             self.best_metric = self.coupling.geometry.metric.detach().clone()

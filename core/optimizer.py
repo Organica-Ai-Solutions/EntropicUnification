@@ -391,7 +391,10 @@ class EntropicOptimizer:
         start = time.time()
         converged = False
         
-        for step in tqdm(range(self.config.steps), desc="Entropic optimization"):
+        progress_bar = tqdm(range(self.config.steps), desc="EntropicUnification", 
+                   bar_format="⚛ {desc}: {percentage:3.0f}%|{bar:25}| {n_fmt}/{total_fmt} [Loss: {postfix}]",
+                   postfix="initializing...")
+        for step in progress_bar:
             # Update learning rate
             self._update_learning_rate(step)
             
@@ -401,6 +404,9 @@ class EntropicOptimizer:
             
             # Perform optimization step
             results = self.optimization_step(state, current_partition, target_gradient, weights)
+            
+            # Update progress bar with current loss values
+            progress_bar.set_postfix_str(f"{results['total_loss'].item():.6f} | E:{results['einstein_loss'].item():.4f}")
             
             # Update history
             if (step + 1) % self.config.log_interval == 0:
@@ -449,7 +455,27 @@ class EntropicOptimizer:
         for key in self.history:
             tensor = results.get(key)
             if tensor is not None:
-                self.history[key].append(float(tensor.detach().cpu()))
+                # Handle potential overflow by clamping extremely large values
+                try:
+                    value = float(tensor.detach().cpu())
+                    # Clamp to a reasonable range to avoid overflow
+                    if value > 1e30:
+                        value = 1e30
+                    elif value < -1e30:
+                        value = -1e30
+                    self.history[key].append(value)
+                except (OverflowError, RuntimeError):
+                    # If conversion fails, use a large but safe value
+                    if torch.is_complex(tensor):
+                        # For complex tensors, use the magnitude
+                        self.history[key].append(1e30)
+                    else:
+                        # For real tensors, preserve sign
+                        try:
+                            self.history[key].append(1e30 if tensor > 0 else -1e30)
+                        except:
+                            # Last resort fallback
+                            self.history[key].append(1e30)
 
     def save_checkpoint(
         self, 

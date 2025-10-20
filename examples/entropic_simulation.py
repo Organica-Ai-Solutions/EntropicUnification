@@ -554,8 +554,8 @@ def main():
             results = run_simulation(components, config, state_type)
             analysis = analyze_results(components, results, config)
             
-                    # Plot results
-                    plot_results(results, analysis, config, state_output, state_type)
+            # Plot results
+            plot_results(results, analysis, config, state_output, state_type)
             
             # Store results and analysis
             all_results[state_type] = results
@@ -572,8 +572,8 @@ def main():
         # Analyze results
         analysis = analyze_results(components, results, config)
         
-                # Plot results
-                plot_results(results, analysis, config, args.output, args.state)
+        # Plot results
+        plot_results(results, analysis, config, args.output, args.state)
     
     print("\nSimulation complete!")
 
