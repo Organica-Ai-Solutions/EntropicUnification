@@ -15,11 +15,29 @@ The EntropicUnification Dashboard provides an intuitive interface for:
 To start the dashboard, run:
 
 ```bash
-cd dashboards
-python app.py
+python dashboards/run_dashboard.py
 ```
 
+This script will automatically determine which dashboard version to run based on the available dependencies:
+
+- If the core modules are available, it will run the full dashboard (`app.py`)
+- If the core modules are not available, it will run the standalone dashboard (`standalone_app.py`)
+
 Then open your browser and navigate to `http://localhost:8050`.
+
+### Alternative Methods
+
+You can also run a specific dashboard version directly:
+
+```bash
+# Run the full dashboard (requires core modules)
+cd dashboards
+python app.py
+
+# Run the standalone dashboard (no dependencies on core modules)
+cd dashboards
+python standalone_app.py
+```
 
 ## Dashboard Structure
 

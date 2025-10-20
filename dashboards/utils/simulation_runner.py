@@ -14,17 +14,30 @@ from pathlib import Path
 import numpy as np
 import torch
 from datetime import datetime
+from dataclasses import dataclass
+from typing import Union, Optional, List, Dict, Any
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from core.quantum_engine import QuantumEngine, QuantumConfig
-from core.geometry_engine import GeometryEngine, GeometryConfig, BoundaryCondition
+from core.geometry_engine import GeometryEngine, BoundaryCondition
 from core.entropy_module import EntropyModule
 from core.coupling_layer import CouplingLayer
 from core.loss_functions import LossFunctions
 from core.optimizer import EntropicOptimizer, OptimizerConfig
 from core.utils.plotting import get_plot_manager
+
+@dataclass
+class GeometryConfig:
+    """Configuration for the geometry engine."""
+    dimensions: int
+    lattice_size: int
+    dx: float
+    boundary_condition: Union[str, BoundaryCondition]
+    higher_curvature_terms: bool = False
+    metric_projection_type: str = "lorentzian"
+    alpha_GB: float = 0.1
 
 class SimulationRunner:
     """Class for running EntropicUnification simulations."""

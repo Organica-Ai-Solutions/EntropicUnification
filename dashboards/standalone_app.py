@@ -1,41 +1,35 @@
 #!/usr/bin/env python3
 """
-EntropicUnification Dashboard
+EntropicUnification Dashboard (Standalone Version)
 
-This script creates a web-based dashboard for controlling simulations
-and visualizing results from the EntropicUnification framework.
+This is a standalone version of the dashboard that doesn't require
+any of the core modules, making it easier to run and test.
 """
 
 import os
 import sys
 import json
-from pathlib import Path
 import numpy as np
 import pandas as pd
-import torch
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 import dash
 from dash import dcc, html, callback, Input, Output, State
 import dash_bootstrap_components as dbc
+from datetime import datetime
+from pathlib import Path
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import dashboard components and utilities
-from components.control_panel import create_control_panel
-from components.results_panel import create_results_panel
-from components.explanation_panel import create_explanation_panel
-from utils.simulation_runner import SimulationRunner
-from utils.result_loader import ResultLoader
-
-# Import core utilities if available
+# Import dashboard components
 try:
-    from core.utils.plotting import get_plot_manager
+    from components.control_panel import create_control_panel
+    from components.results_panel import create_results_panel
+    from components.explanation_panel import create_explanation_panel
 except ImportError:
-    print("Warning: Could not import plotting utilities from core.")
-    get_plot_manager = None
+    # Try relative imports if the above fails
+    from dashboards.components.control_panel import create_control_panel
+    from dashboards.components.results_panel import create_results_panel
+    from dashboards.components.explanation_panel import create_explanation_panel
 
 # Get the absolute path to the assets folder
 assets_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
@@ -45,6 +39,7 @@ app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.FLATLY],
     meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
+    assets_folder=assets_path
 )
 app.title = "EntropicUnification Dashboard"
 server = app.server
@@ -197,6 +192,7 @@ def start_simulation(
             "steps": steps,
         },
         "initial_state": initial_state,
+        "timestamp": datetime.now().strftime("%Y%m%d_%H%M%S")
     }
     
     # In a real implementation, this would start the actual simulation
@@ -204,7 +200,56 @@ def start_simulation(
     
     return config, {"running": True, "progress": 0, "message": "Starting simulation..."}
 
-# Callback to load simulation results
+# Callback to update the progress bar and status text
+@app.callback(
+    Output("progress-simulation", "value"),
+    Output("progress-simulation", "label"),
+    Output("simulation-status-text", "children"),
+    Input("simulation-status", "data"),
+)
+def update_progress_bar(status):
+    """Update the progress bar based on simulation status."""
+    if status is None or "progress" not in status:
+        return 0, "0%", "Ready to start simulation"
+    
+    progress = status.get("progress", 0)
+    message = status.get("message", "")
+    
+    # Create a status alert with appropriate color
+    if status.get("completed", False):
+        alert_color = "success"
+    elif status.get("error", False):
+        alert_color = "danger"
+    elif status.get("running", False):
+        alert_color = "info"
+    else:
+        alert_color = "secondary"
+    
+    status_alert = dbc.Alert(
+        message,
+        color=alert_color,
+        className="mb-0"
+    )
+    
+    return progress, f"{progress}%", status_alert
+
+# Callback to update the available result directories
+@app.callback(
+    Output("dropdown-result-dir", "options"),
+    Input("interval-update", "n_intervals"),
+)
+def update_result_directories(n_intervals):
+    """Update the available result directories."""
+    # In a real implementation, this would scan the results directory
+    # For now, we'll just return some dummy options
+    return [
+        {"label": "Bell State (2025-10-20)", "value": "bell_20251020"},
+        {"label": "GHZ State (2025-10-19)", "value": "ghz_20251019"},
+        {"label": "Random State (2025-10-18)", "value": "random_20251018"},
+        {"label": "Current Simulation", "value": "current"},
+    ]
+
+# Callback to load simulation results (simplified for demo)
 @app.callback(
     Output("simulation-results", "data"),
     Input("btn-load-results", "n_clicks"),
@@ -212,31 +257,76 @@ def start_simulation(
     prevent_initial_call=True,
 )
 def load_simulation_results(n_clicks, result_dir):
-    """Load simulation results from the specified directory."""
+    """Load simulation results (demo version)."""
     if n_clicks is None or result_dir is None:
         return None
     
-    # In a real implementation, this would load actual results
-    # For now, we'll just return dummy data
-    
-    loader = ResultLoader()
-    results = loader.load_results(result_dir)
+    # Create dummy results based on the selected directory
+    if "bell" in result_dir:
+        # Bell state results
+        results = {
+            "history": {
+                "total_loss": [np.exp(-i/20) for i in range(100)],
+                "einstein_loss": [np.exp(-i/15) for i in range(100)],
+                "entropy_loss": [np.exp(-i/25) for i in range(100)],
+            },
+            "analysis": {
+                "area_law": {
+                    "area_law_coefficient": 0.253,
+                    "r_squared": 0.987,
+                },
+                "entropy_components": {
+                    "bulk": 0.7,
+                    "edge_modes": 0.2,
+                    "uv_correction": 0.1,
+                    "total": 1.0,
+                },
+            }
+        }
+    elif "ghz" in result_dir:
+        # GHZ state results
+        results = {
+            "history": {
+                "total_loss": [np.exp(-i/15) for i in range(100)],
+                "einstein_loss": [np.exp(-i/10) for i in range(100)],
+                "entropy_loss": [np.exp(-i/20) for i in range(100)],
+            },
+            "analysis": {
+                "area_law": {
+                    "area_law_coefficient": 0.312,
+                    "r_squared": 0.954,
+                },
+                "entropy_components": {
+                    "bulk": 0.6,
+                    "edge_modes": 0.3,
+                    "uv_correction": 0.1,
+                    "total": 1.0,
+                },
+            }
+        }
+    else:
+        # Random state or current simulation results
+        results = {
+            "history": {
+                "total_loss": [np.exp(-i/25) for i in range(100)],
+                "einstein_loss": [np.exp(-i/20) for i in range(100)],
+                "entropy_loss": [np.exp(-i/30) for i in range(100)],
+            },
+            "analysis": {
+                "area_law": {
+                    "area_law_coefficient": 0.195,
+                    "r_squared": 0.921,
+                },
+                "entropy_components": {
+                    "bulk": 0.5,
+                    "edge_modes": 0.3,
+                    "uv_correction": 0.2,
+                    "total": 1.0,
+                },
+            }
+        }
     
     return results
-
-# Callback to update the progress bar
-@app.callback(
-    Output("progress-simulation", "value"),
-    Output("progress-simulation", "label"),
-    Input("simulation-status", "data"),
-)
-def update_progress_bar(status):
-    """Update the progress bar based on simulation status."""
-    if status is None or "progress" not in status:
-        return 0, "0%"
-    
-    progress = status.get("progress", 0)
-    return progress, f"{progress}%"
 
 # Callback to update the results plots
 @app.callback(
@@ -274,7 +364,7 @@ def update_results_plots(results, plot_style):
         xaxis_title="Iterations",
         yaxis_title="Loss Value",
         yaxis_type="log",
-        template=plot_style,
+        template=plot_style or "plotly_white",
     )
     
     # Entropy vs Area plot
@@ -296,7 +386,7 @@ def update_results_plots(results, plot_style):
         title="Entropy vs Area",
         xaxis_title="Boundary Area",
         yaxis_title="Entanglement Entropy",
-        template=plot_style,
+        template=plot_style or "plotly_white",
     )
     
     # Entropy components plot
@@ -311,7 +401,7 @@ def update_results_plots(results, plot_style):
     
     entropy_components_fig.update_layout(
         title="Entropy Components",
-        template=plot_style,
+        template=plot_style or "plotly_white",
     )
     
     # Metric evolution plot
@@ -332,11 +422,17 @@ def update_results_plots(results, plot_style):
     
     metric_evolution_fig.update_layout(
         title="Metric Evolution",
-        template=plot_style,
+        template=plot_style or "plotly_white",
     )
     
     return loss_fig, entropy_area_fig, entropy_components_fig, metric_evolution_fig
 
 # Run the app
 if __name__ == "__main__":
+    print("\n" + "="*50)
+    print("EntropicUnification Dashboard (Standalone Version)")
+    print("="*50)
+    print("\nStarting dashboard server...")
+    print("Open your web browser and navigate to: http://127.0.0.1:8050/")
+    print("\nPress Ctrl+C to stop the server.")
     app.run(debug=True, port=8050)

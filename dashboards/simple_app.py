@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """
-EntropicUnification Dashboard
+EntropicUnification Dashboard (Simple Version)
 
-This script creates a web-based dashboard for controlling simulations
-and visualizing results from the EntropicUnification framework.
+This is a simplified version of the dashboard that doesn't require
+all the core modules, making it easier to test the UI.
 """
 
 import os
 import sys
 import json
-from pathlib import Path
 import numpy as np
 import pandas as pd
-import torch
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -20,22 +18,16 @@ import dash
 from dash import dcc, html, callback, Input, Output, State
 import dash_bootstrap_components as dbc
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import dashboard components and utilities
-from components.control_panel import create_control_panel
-from components.results_panel import create_results_panel
-from components.explanation_panel import create_explanation_panel
-from utils.simulation_runner import SimulationRunner
-from utils.result_loader import ResultLoader
-
-# Import core utilities if available
+# Import dashboard components
 try:
-    from core.utils.plotting import get_plot_manager
+    from components.control_panel import create_control_panel
+    from components.results_panel import create_results_panel
+    from components.explanation_panel import create_explanation_panel
 except ImportError:
-    print("Warning: Could not import plotting utilities from core.")
-    get_plot_manager = None
+    # Try relative imports if the above fails
+    from dashboards.components.control_panel import create_control_panel
+    from dashboards.components.results_panel import create_results_panel
+    from dashboards.components.explanation_panel import create_explanation_panel
 
 # Get the absolute path to the assets folder
 assets_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
@@ -45,6 +37,7 @@ app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.FLATLY],
     meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
+    assets_folder=assets_path
 )
 app.title = "EntropicUnification Dashboard"
 server = app.server
@@ -204,26 +197,6 @@ def start_simulation(
     
     return config, {"running": True, "progress": 0, "message": "Starting simulation..."}
 
-# Callback to load simulation results
-@app.callback(
-    Output("simulation-results", "data"),
-    Input("btn-load-results", "n_clicks"),
-    State("dropdown-result-dir", "value"),
-    prevent_initial_call=True,
-)
-def load_simulation_results(n_clicks, result_dir):
-    """Load simulation results from the specified directory."""
-    if n_clicks is None or result_dir is None:
-        return None
-    
-    # In a real implementation, this would load actual results
-    # For now, we'll just return dummy data
-    
-    loader = ResultLoader()
-    results = loader.load_results(result_dir)
-    
-    return results
-
 # Callback to update the progress bar
 @app.callback(
     Output("progress-simulation", "value"),
@@ -336,6 +309,40 @@ def update_results_plots(results, plot_style):
     )
     
     return loss_fig, entropy_area_fig, entropy_components_fig, metric_evolution_fig
+
+# Callback to load simulation results (simplified for demo)
+@app.callback(
+    Output("simulation-results", "data"),
+    Input("btn-load-results", "n_clicks"),
+    prevent_initial_call=True,
+)
+def load_simulation_results(n_clicks):
+    """Load simulation results (demo version)."""
+    if n_clicks is None:
+        return None
+    
+    # Create dummy results
+    results = {
+        "history": {
+            "total_loss": [np.exp(-i/20) for i in range(100)],
+            "einstein_loss": [np.exp(-i/15) for i in range(100)],
+            "entropy_loss": [np.exp(-i/25) for i in range(100)],
+        },
+        "analysis": {
+            "area_law": {
+                "area_law_coefficient": 0.253,
+                "r_squared": 0.987,
+            },
+            "entropy_components": {
+                "bulk": 0.7,
+                "edge_modes": 0.2,
+                "uv_correction": 0.1,
+                "total": 1.0,
+            },
+        }
+    }
+    
+    return results
 
 # Run the app
 if __name__ == "__main__":
