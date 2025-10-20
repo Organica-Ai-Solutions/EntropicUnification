@@ -121,6 +121,29 @@ While the specific formulation presented here is exploratory rather than a valid
 - **Higher Curvature Terms**: Support for Gauss-Bonnet and other higher curvature corrections
 - **Edge Mode Handling**: Models edge mode contributions to entanglement entropy
 - **Stress Tensor Formulations**: Multiple formulations of the entropic stress-energy tensor
+- **Interactive Dashboard**: Comprehensive visualization and control interface with real-time parameter tuning
+
+![Dashboard Interface](docs/images/dashboard.jpg)
+
+## Results Visualization
+
+### Entropy-Area Relationship
+
+![Entropy-Area Relationship](docs/images/entropy_area_plot.jpg)
+
+This plot demonstrates the relationship between entanglement entropy and boundary area, a key prediction of holographic theories. The framework consistently reproduces the expected linear relationship (S ∝ A), with the proportionality constant approximating the theoretical value of 1/4 in appropriate units. Deviations from linearity provide insights into quantum corrections and edge mode contributions.
+
+### Loss Convergence
+
+![Loss Convergence](docs/images/loss_curves.jpg)
+
+The optimization process shows how the system evolves to minimize inconsistency between geometric curvature and entropic flow. Different components of the loss function (Einstein tensor residual, entropy gradient alignment, regularity constraints) converge at different rates, revealing the multi-scale nature of quantum-geometric coupling.
+
+### Entropy Components
+
+![Entropy Components](docs/images/entropy_components.jpg)
+
+This visualization breaks down the contributions to total entanglement entropy from bulk quantum correlations, edge modes at entangling surfaces, and UV regularization effects. The relative proportions vary based on the quantum state, partition choice, and geometric configuration, providing a window into how different physical effects contribute to the information content of spacetime regions.
 
 ## Setup and Installation
 
@@ -270,6 +293,14 @@ EntropicUnification draws inspiration from these ideas but remains an explorator
 ## Philosophy
 
 "The universe doesn't obey mathematical laws—it computes them."
+
+## Research Perspective
+
+Overall, EntropicUnification represents a creative application of modern computational techniques to explore speculative but mathematically grounded ideas in fundamental physics - exactly the kind of exploratory work that can sometimes lead to unexpected insights. By recasting theoretical questions about quantum gravity as computational optimization problems, we create a concrete platform for testing hypotheses and visualizing abstract relationships.
+
+![Metric Evolution](docs/images/metric_evolution.jpg)
+
+The visualization above shows the evolution of the spacetime metric during optimization, revealing how geometric structure adapts to satisfy entropic constraints. This approach allows us to explore questions that are difficult to address through purely analytical methods.
 
 ---
 
