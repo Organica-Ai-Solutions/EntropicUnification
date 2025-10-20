@@ -1,0 +1,358 @@
+2025-10-20 02:51:39,849 - __main__ - INFO - Starting comprehensive tests of the EntropicUnification engine...
+2025-10-20 02:51:39,849 - __main__ - INFO - 
+==================================================
+Testing Quantum Engine
+==================================================
+2025-10-20 02:51:39,849 - __main__ - INFO - Testing quantum engine...
+2025-10-20 02:51:39,849 - __main__ - ERROR - ✗ Quantum Engine tests failed with exception: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 482, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 55, in test_quantum_engine
+    quantum_engine = QuantumEngine(num_qubits=num_qubits, depth=depth)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+2025-10-20 02:51:39,849 - __main__ - INFO - 
+==================================================
+Testing Geometry Engine
+==================================================
+2025-10-20 02:51:39,849 - __main__ - INFO - Testing geometry engine...
+2025-10-20 02:51:40,384 - __main__ - INFO - ✓ Geometry engine tests passed
+2025-10-20 02:51:40,527 - __main__ - INFO - ✓ Geometry Engine tests passed in 0.68 seconds
+2025-10-20 02:51:40,527 - __main__ - INFO - 
+==================================================
+Testing Entropy Module
+==================================================
+2025-10-20 02:51:40,527 - __main__ - INFO - Testing entropy module...
+2025-10-20 02:51:40,527 - __main__ - ERROR - ✗ Entropy Module tests failed with exception: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 482, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 141, in test_entropy_module
+    quantum_engine = QuantumEngine(num_qubits=num_qubits, depth=depth)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+2025-10-20 02:51:40,527 - __main__ - INFO - 
+==================================================
+Testing Coupling Layer
+==================================================
+2025-10-20 02:51:40,527 - __main__ - INFO - Testing coupling layer...
+2025-10-20 02:51:40,527 - __main__ - ERROR - ✗ Coupling Layer tests failed with exception: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 482, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 185, in test_coupling_layer
+    quantum_engine = QuantumEngine(num_qubits=num_qubits, depth=depth)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+2025-10-20 02:51:40,527 - __main__ - INFO - 
+==================================================
+Testing Loss Functions
+==================================================
+2025-10-20 02:51:40,527 - __main__ - INFO - Testing loss functions...
+2025-10-20 02:51:40,527 - __main__ - ERROR - ✗ Loss Functions tests failed with exception: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 482, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 245, in test_loss_functions
+    quantum_engine = QuantumEngine(num_qubits=num_qubits, depth=depth)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+2025-10-20 02:51:40,528 - __main__ - INFO - 
+==================================================
+Testing Optimizer
+==================================================
+2025-10-20 02:51:40,528 - __main__ - INFO - Testing optimizer...
+2025-10-20 02:51:40,528 - __main__ - ERROR - ✗ Optimizer tests failed with exception: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 482, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 309, in test_optimizer
+    quantum_engine = QuantumEngine(num_qubits=num_qubits, depth=depth)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+2025-10-20 02:51:40,528 - __main__ - INFO - 
+==================================================
+Testing Integration
+==================================================
+2025-10-20 02:51:40,528 - __main__ - INFO - Testing integration of all components...
+2025-10-20 02:51:40,528 - __main__ - ERROR - ✗ Integration tests failed with exception: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 482, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 381, in test_integration
+    quantum_engine = QuantumEngine(num_qubits=num_qubits, depth=depth)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: QuantumEngine.__init__() got an unexpected keyword argument 'num_qubits'
+2025-10-20 02:51:40,528 - __main__ - INFO - 
+==================================================
+2025-10-20 02:51:40,528 - __main__ - INFO - Test Summary
+2025-10-20 02:51:40,528 - __main__ - INFO - ==================================================
+2025-10-20 02:51:40,528 - __main__ - INFO - Quantum Engine       | ERROR      | 0.00s
+2025-10-20 02:51:40,528 - __main__ - INFO - Geometry Engine      | PASSED     | 0.68s
+2025-10-20 02:51:40,528 - __main__ - INFO - Entropy Module       | ERROR      | 0.00s
+2025-10-20 02:51:40,528 - __main__ - INFO - Coupling Layer       | ERROR      | 0.00s
+2025-10-20 02:51:40,528 - __main__ - INFO - Loss Functions       | ERROR      | 0.00s
+2025-10-20 02:51:40,528 - __main__ - INFO - Optimizer            | ERROR      | 0.00s
+2025-10-20 02:51:40,528 - __main__ - INFO - Integration          | ERROR      | 0.00s
+2025-10-20 02:51:40,528 - __main__ - INFO - --------------------------------------------------
+2025-10-20 02:51:40,528 - __main__ - INFO - Passed: 1/7, Failed: 0, Errors: 6
+2025-10-20 02:51:40,528 - __main__ - ERROR - 
+✗ Some tests failed!
+2025-10-20 02:52:14,305 - __main__ - INFO - Starting comprehensive tests of the EntropicUnification engine...
+2025-10-20 02:52:14,306 - __main__ - INFO - 
+==================================================
+Testing Quantum Engine
+==================================================
+2025-10-20 02:52:14,306 - __main__ - INFO - Testing quantum engine...
+2025-10-20 02:52:14,306 - __main__ - ERROR - ✗ Quantum Engine tests failed with exception: name 'QuantumConfig' is not defined
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 524, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 56, in test_quantum_engine
+    config=QuantumConfig(
+           ^^^^^^^^^^^^^
+NameError: name 'QuantumConfig' is not defined
+2025-10-20 02:52:14,307 - __main__ - INFO - 
+==================================================
+Testing Geometry Engine
+==================================================
+2025-10-20 02:52:14,307 - __main__ - INFO - Testing geometry engine...
+2025-10-20 02:52:15,245 - __main__ - INFO - ✓ Geometry engine tests passed
+2025-10-20 02:52:15,437 - __main__ - INFO - ✓ Geometry Engine tests passed in 1.13 seconds
+2025-10-20 02:52:15,438 - __main__ - INFO - 
+==================================================
+Testing Entropy Module
+==================================================
+2025-10-20 02:52:15,438 - __main__ - INFO - Testing entropy module...
+2025-10-20 02:52:15,438 - __main__ - ERROR - ✗ Entropy Module tests failed with exception: name 'QuantumConfig' is not defined
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 524, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 149, in test_entropy_module
+    config=QuantumConfig(
+           ^^^^^^^^^^^^^
+NameError: name 'QuantumConfig' is not defined
+2025-10-20 02:52:15,438 - __main__ - INFO - 
+==================================================
+Testing Coupling Layer
+==================================================
+2025-10-20 02:52:15,438 - __main__ - INFO - Testing coupling layer...
+2025-10-20 02:52:15,438 - __main__ - ERROR - ✗ Coupling Layer tests failed with exception: name 'QuantumConfig' is not defined
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 524, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 200, in test_coupling_layer
+    config=QuantumConfig(
+           ^^^^^^^^^^^^^
+NameError: name 'QuantumConfig' is not defined
+2025-10-20 02:52:15,438 - __main__ - INFO - 
+==================================================
+Testing Loss Functions
+==================================================
+2025-10-20 02:52:15,439 - __main__ - INFO - Testing loss functions...
+2025-10-20 02:52:15,439 - __main__ - ERROR - ✗ Loss Functions tests failed with exception: name 'QuantumConfig' is not defined
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 524, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 267, in test_loss_functions
+    config=QuantumConfig(
+           ^^^^^^^^^^^^^
+NameError: name 'QuantumConfig' is not defined
+2025-10-20 02:52:15,439 - __main__ - INFO - 
+==================================================
+Testing Optimizer
+==================================================
+2025-10-20 02:52:15,439 - __main__ - INFO - Testing optimizer...
+2025-10-20 02:52:15,439 - __main__ - ERROR - ✗ Optimizer tests failed with exception: name 'QuantumConfig' is not defined
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 524, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 338, in test_optimizer
+    config=QuantumConfig(
+           ^^^^^^^^^^^^^
+NameError: name 'QuantumConfig' is not defined
+2025-10-20 02:52:15,439 - __main__ - INFO - 
+==================================================
+Testing Integration
+==================================================
+2025-10-20 02:52:15,440 - __main__ - INFO - Testing integration of all components...
+2025-10-20 02:52:15,440 - __main__ - ERROR - ✗ Integration tests failed with exception: name 'QuantumConfig' is not defined
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 524, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 417, in test_integration
+    config=QuantumConfig(
+           ^^^^^^^^^^^^^
+NameError: name 'QuantumConfig' is not defined
+2025-10-20 02:52:15,440 - __main__ - INFO - 
+==================================================
+2025-10-20 02:52:15,440 - __main__ - INFO - Test Summary
+2025-10-20 02:52:15,440 - __main__ - INFO - ==================================================
+2025-10-20 02:52:15,440 - __main__ - INFO - Quantum Engine       | ERROR      | 0.00s
+2025-10-20 02:52:15,440 - __main__ - INFO - Geometry Engine      | PASSED     | 1.13s
+2025-10-20 02:52:15,440 - __main__ - INFO - Entropy Module       | ERROR      | 0.00s
+2025-10-20 02:52:15,441 - __main__ - INFO - Coupling Layer       | ERROR      | 0.00s
+2025-10-20 02:52:15,441 - __main__ - INFO - Loss Functions       | ERROR      | 0.00s
+2025-10-20 02:52:15,441 - __main__ - INFO - Optimizer            | ERROR      | 0.00s
+2025-10-20 02:52:15,441 - __main__ - INFO - Integration          | ERROR      | 0.00s
+2025-10-20 02:52:15,441 - __main__ - INFO - --------------------------------------------------
+2025-10-20 02:52:15,441 - __main__ - INFO - Passed: 1/7, Failed: 0, Errors: 6
+2025-10-20 02:52:15,441 - __main__ - ERROR - 
+✗ Some tests failed!
+2025-10-20 02:52:54,869 - __main__ - INFO - Starting comprehensive tests of the EntropicUnification engine...
+2025-10-20 02:52:54,869 - __main__ - INFO - 
+==================================================
+Testing Quantum Engine
+==================================================
+2025-10-20 02:52:54,870 - __main__ - INFO - Testing quantum engine...
+2025-10-20 02:52:54,961 - __main__ - INFO - ✓ Quantum engine tests passed
+2025-10-20 02:52:54,961 - __main__ - INFO - ✓ Quantum Engine tests passed in 0.09 seconds
+2025-10-20 02:52:54,961 - __main__ - INFO - 
+==================================================
+Testing Geometry Engine
+==================================================
+2025-10-20 02:52:54,961 - __main__ - INFO - Testing geometry engine...
+2025-10-20 02:52:55,517 - __main__ - INFO - ✓ Geometry engine tests passed
+2025-10-20 02:52:55,648 - __main__ - INFO - ✓ Geometry Engine tests passed in 0.69 seconds
+2025-10-20 02:52:55,648 - __main__ - INFO - 
+==================================================
+Testing Entropy Module
+==================================================
+2025-10-20 02:52:55,648 - __main__ - INFO - Testing entropy module...
+2025-10-20 02:52:55,847 - __main__ - INFO - ✓ Entropy module tests passed
+2025-10-20 02:52:55,847 - __main__ - INFO - ✓ Entropy Module tests passed in 0.20 seconds
+2025-10-20 02:52:55,847 - __main__ - INFO - 
+==================================================
+Testing Coupling Layer
+==================================================
+2025-10-20 02:52:55,847 - __main__ - INFO - Testing coupling layer...
+2025-10-20 02:52:58,208 - __main__ - INFO - ✓ Coupling layer tests passed
+2025-10-20 02:52:58,533 - __main__ - INFO - ✓ Coupling Layer tests passed in 2.69 seconds
+2025-10-20 02:52:58,533 - __main__ - INFO - 
+==================================================
+Testing Loss Functions
+==================================================
+2025-10-20 02:52:58,533 - __main__ - INFO - Testing loss functions...
+2025-10-20 02:52:59,000 - __main__ - INFO - ✓ Loss functions tests passed
+2025-10-20 02:52:59,103 - __main__ - INFO - ✓ Loss Functions tests passed in 0.57 seconds
+2025-10-20 02:52:59,103 - __main__ - INFO - 
+==================================================
+Testing Optimizer
+==================================================
+2025-10-20 02:52:59,103 - __main__ - INFO - Testing optimizer...
+2025-10-20 02:52:59,105 - __main__ - ERROR - ✗ Optimizer tests failed with exception: 'QuantumEngine' object has no attribute 'get_parameter_count'
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 528, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 391, in test_optimizer
+    parameters = torch.rand(quantum_engine.get_parameter_count())
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'QuantumEngine' object has no attribute 'get_parameter_count'
+2025-10-20 02:52:59,106 - __main__ - INFO - 
+==================================================
+Testing Integration
+==================================================
+2025-10-20 02:52:59,106 - __main__ - INFO - Testing integration of all components...
+2025-10-20 02:52:59,107 - __main__ - ERROR - ✗ Integration tests failed with exception: 'QuantumEngine' object has no attribute 'get_parameter_count'
+Traceback (most recent call last):
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 528, in test_all
+    success = test_func()
+              ^^^^^^^^^^^
+  File "/Users/diegofuego/Desktop/EntropicUnification/test_engine.py", line 481, in test_integration
+    parameters = torch.rand(quantum_engine.get_parameter_count())
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'QuantumEngine' object has no attribute 'get_parameter_count'
+2025-10-20 02:52:59,107 - __main__ - INFO - 
+==================================================
+2025-10-20 02:52:59,107 - __main__ - INFO - Test Summary
+2025-10-20 02:52:59,107 - __main__ - INFO - ==================================================
+2025-10-20 02:52:59,107 - __main__ - INFO - Quantum Engine       | PASSED     | 0.09s
+2025-10-20 02:52:59,107 - __main__ - INFO - Geometry Engine      | PASSED     | 0.69s
+2025-10-20 02:52:59,107 - __main__ - INFO - Entropy Module       | PASSED     | 0.20s
+2025-10-20 02:52:59,107 - __main__ - INFO - Coupling Layer       | PASSED     | 2.69s
+2025-10-20 02:52:59,107 - __main__ - INFO - Loss Functions       | PASSED     | 0.57s
+2025-10-20 02:52:59,107 - __main__ - INFO - Optimizer            | ERROR      | 0.00s
+2025-10-20 02:52:59,107 - __main__ - INFO - Integration          | ERROR      | 0.00s
+2025-10-20 02:52:59,107 - __main__ - INFO - --------------------------------------------------
+2025-10-20 02:52:59,107 - __main__ - INFO - Passed: 5/7, Failed: 0, Errors: 2
+2025-10-20 02:52:59,107 - __main__ - ERROR - 
+✗ Some tests failed!
+2025-10-20 02:53:33,512 - __main__ - INFO - Starting comprehensive tests of the EntropicUnification engine...
+2025-10-20 02:53:33,512 - __main__ - INFO - 
+==================================================
+Testing Quantum Engine
+==================================================
+2025-10-20 02:53:33,512 - __main__ - INFO - Testing quantum engine...
+2025-10-20 02:53:33,622 - __main__ - INFO - ✓ Quantum engine tests passed
+2025-10-20 02:53:33,623 - __main__ - INFO - ✓ Quantum Engine tests passed in 0.11 seconds
+2025-10-20 02:53:33,623 - __main__ - INFO - 
+==================================================
+Testing Geometry Engine
+==================================================
+2025-10-20 02:53:33,623 - __main__ - INFO - Testing geometry engine...
+2025-10-20 02:53:34,156 - __main__ - INFO - ✓ Geometry engine tests passed
+2025-10-20 02:53:34,339 - __main__ - INFO - ✓ Geometry Engine tests passed in 0.72 seconds
+2025-10-20 02:53:34,340 - __main__ - INFO - 
+==================================================
+Testing Entropy Module
+==================================================
+2025-10-20 02:53:34,340 - __main__ - INFO - Testing entropy module...
+2025-10-20 02:53:34,491 - __main__ - INFO - ✓ Entropy module tests passed
+2025-10-20 02:53:34,492 - __main__ - INFO - ✓ Entropy Module tests passed in 0.15 seconds
+2025-10-20 02:53:34,492 - __main__ - INFO - 
+==================================================
+Testing Coupling Layer
+==================================================
+2025-10-20 02:53:34,492 - __main__ - INFO - Testing coupling layer...
+2025-10-20 02:53:37,411 - __main__ - INFO - ✓ Coupling layer tests passed
+2025-10-20 02:53:37,833 - __main__ - INFO - ✓ Coupling Layer tests passed in 3.34 seconds
+2025-10-20 02:53:37,833 - __main__ - INFO - 
+==================================================
+Testing Loss Functions
+==================================================
+2025-10-20 02:53:37,833 - __main__ - INFO - Testing loss functions...
+2025-10-20 02:53:38,295 - __main__ - INFO - ✓ Loss functions tests passed
+2025-10-20 02:53:38,405 - __main__ - INFO - ✓ Loss Functions tests passed in 0.57 seconds
+2025-10-20 02:53:38,405 - __main__ - INFO - 
+==================================================
+Testing Optimizer
+==================================================
+2025-10-20 02:53:38,405 - __main__ - INFO - Testing optimizer...
+2025-10-20 02:53:50,878 - __main__ - INFO - ✓ Optimizer tests passed
+2025-10-20 02:53:51,167 - __main__ - INFO - ✓ Optimizer tests passed in 12.76 seconds
+2025-10-20 02:53:51,167 - __main__ - INFO - 
+==================================================
+Testing Integration
+==================================================
+2025-10-20 02:53:51,167 - __main__ - INFO - Testing integration of all components...
+2025-10-20 02:54:08,820 - __main__ - INFO - ✓ Integration tests passed
+2025-10-20 02:54:08,826 - __main__ - INFO - ✓ Integration tests passed in 17.66 seconds
+2025-10-20 02:54:08,826 - __main__ - INFO - 
+==================================================
+2025-10-20 02:54:08,826 - __main__ - INFO - Test Summary
+2025-10-20 02:54:08,826 - __main__ - INFO - ==================================================
+2025-10-20 02:54:08,826 - __main__ - INFO - Quantum Engine       | PASSED     | 0.11s
+2025-10-20 02:54:08,826 - __main__ - INFO - Geometry Engine      | PASSED     | 0.72s
+2025-10-20 02:54:08,826 - __main__ - INFO - Entropy Module       | PASSED     | 0.15s
+2025-10-20 02:54:08,826 - __main__ - INFO - Coupling Layer       | PASSED     | 3.34s
+2025-10-20 02:54:08,826 - __main__ - INFO - Loss Functions       | PASSED     | 0.57s
+2025-10-20 02:54:08,826 - __main__ - INFO - Optimizer            | PASSED     | 12.76s
+2025-10-20 02:54:08,826 - __main__ - INFO - Integration          | PASSED     | 17.66s
+2025-10-20 02:54:08,827 - __main__ - INFO - --------------------------------------------------
+2025-10-20 02:54:08,827 - __main__ - INFO - Passed: 7/7, Failed: 0, Errors: 0
+2025-10-20 02:54:08,827 - __main__ - INFO - 
+✓ All tests passed!

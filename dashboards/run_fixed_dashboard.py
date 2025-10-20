@@ -9,8 +9,11 @@ and React component errors.
 import os
 import sys
 import importlib
+import subprocess
+import time
 from pathlib import Path
 import socket
+import psutil
 
 def check_port_in_use(port):
     """Check if a port is in use."""
@@ -32,6 +35,25 @@ def check_import(module_name):
     except ImportError:
         return False
 
+def kill_existing_dashboard_processes():
+    """Kill any existing dashboard processes."""
+    killed = False
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            cmdline = ' '.join(proc.cmdline())
+            if 'python' in cmdline and 'dashboard' in cmdline:
+                print(f"Killing existing dashboard process (PID: {proc.pid})")
+                proc.kill()
+                killed = True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    
+    if killed:
+        # Give processes time to fully terminate
+        time.sleep(2)
+    
+    return killed
+
 def main():
     """Run the enhanced dashboard with fixes for React errors."""
     print("\n" + "="*50)
@@ -39,7 +61,7 @@ def main():
     print("="*50)
     
     # Check if the required packages are installed
-    required_packages = ["dash", "dash_bootstrap_components", "plotly", "numpy", "pandas"]
+    required_packages = ["dash", "dash_bootstrap_components", "plotly", "numpy", "pandas", "psutil"]
     missing_packages = [pkg for pkg in required_packages if not check_import(pkg)]
     
     if missing_packages:
@@ -47,12 +69,15 @@ def main():
         print(f"  pip install {' '.join(missing_packages)}")
         return 1
     
+    # Kill any existing dashboard processes
+    kill_existing_dashboard_processes()
+    
     # Find an available port
     try:
         port = find_available_port()
-        print(f"\nFound available port: {port}")
+        print(f"Found available port: {port}")
     except RuntimeError as e:
-        print(f"\nError: {e}")
+        print(f"Error: {e}")
         return 1
     
     # Import the enhanced_app module
@@ -63,9 +88,9 @@ def main():
         # Import the enhanced_app module
         from dashboards import enhanced_app
         
-        print("\nStarting enhanced dashboard...")
+        print("Starting enhanced dashboard...")
         print(f"Open your web browser and navigate to: http://127.0.0.1:{port}/")
-        print("\nPress Ctrl+C to stop the server.")
+        print("Press Ctrl+C to stop the server.")
         
         # Configure the app to suppress React errors
         enhanced_app.app.config.update({
@@ -74,11 +99,11 @@ def main():
         })
         
         # Run the app
-        enhanced_app.app.run(debug=True, port=port)
+        enhanced_app.app.run(debug=True, port=port, host='127.0.0.1')
         
         return 0
     except Exception as e:
-        print(f"\nError running dashboard: {e}")
+        print(f"Error running dashboard: {e}")
         return 1
 
 if __name__ == "__main__":
