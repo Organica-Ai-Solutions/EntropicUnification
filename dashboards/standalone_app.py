@@ -25,11 +25,31 @@ try:
     from components.control_panel import create_control_panel
     from components.results_panel import create_results_panel
     from components.explanation_panel import create_explanation_panel
+    from components.settings_panel import create_settings_panel
+    from components.help_tooltips import get_help_tooltip, HELP_TOOLTIPS
+    from components.interactive_plots import (
+        create_plot_container,
+        create_enhanced_loss_curves,
+        create_enhanced_entropy_area,
+        create_enhanced_entropy_components,
+        create_enhanced_metric_evolution,
+        fig_to_uri
+    )
 except ImportError:
     # Try relative imports if the above fails
     from dashboards.components.control_panel import create_control_panel
     from dashboards.components.results_panel import create_results_panel
     from dashboards.components.explanation_panel import create_explanation_panel
+    from dashboards.components.settings_panel import create_settings_panel
+    from dashboards.components.help_tooltips import get_help_tooltip, HELP_TOOLTIPS
+    from dashboards.components.interactive_plots import (
+        create_plot_container,
+        create_enhanced_loss_curves,
+        create_enhanced_entropy_area,
+        create_enhanced_entropy_components,
+        create_enhanced_metric_evolution,
+        fig_to_uri
+    )
 
 # Get the absolute path to the assets folder
 assets_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
@@ -59,11 +79,14 @@ app.layout = dbc.Container(
                             className="lead",
                         ),
                     ],
-                    className="text-center my-4",
+                    className="text-center my-4 dashboard-header",
                 ),
                 width=12,
             )
         ),
+        
+        # Settings Panel
+        create_settings_panel(),
         
         # Tabs for different sections
         dbc.Tabs(
