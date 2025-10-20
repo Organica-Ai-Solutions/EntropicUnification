@@ -59,10 +59,17 @@ app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.FLATLY],
     meta_tags=[{"name": "viewport", "content": "width=device-width, initial-scale=1"}],
-    assets_folder=assets_path
+    assets_folder=assets_path,
+    suppress_callback_exceptions=True  # Prevent callback exceptions during partial loading
 )
 app.title = "EntropicUnification Dashboard"
 server = app.server
+
+# Configure Dash to work better with React
+app.config.update({
+    'suppress_callback_exceptions': True,
+    'prevent_initial_callbacks': True
+})
 
 # Create the app layout
 app.layout = dbc.Container(

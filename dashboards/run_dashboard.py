@@ -101,7 +101,19 @@ def main():
         
         # Access the app object from the module and run it
         app = getattr(dashboard_module, "app")
-        app.run(debug=True, port=8050)
+        
+        # Try different ports if the default is in use
+        for port in [8050, 8051, 8052, 8053, 8054]:
+            try:
+                print(f"Attempting to start dashboard on port {port}...")
+                app.run(debug=True, port=port)
+                break
+            except Exception as e:
+                if "Address already in use" in str(e):
+                    print(f"Port {port} is already in use, trying next port...")
+                else:
+                    print(f"Error starting server on port {port}: {e}")
+                    raise
         
         return 0
     except Exception as e:

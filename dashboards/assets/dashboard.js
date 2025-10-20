@@ -2,22 +2,32 @@
  * JavaScript for EntropicUnification Dashboard
  */
 
+// Prevent conflicts with React's event system
+window.dashboardInitialized = false;
+
 // Wait for the document to be fully loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize theme from localStorage
-    initializeTheme();
+    // Avoid duplicate initialization
+    if (window.dashboardInitialized) return;
+    window.dashboardInitialized = true;
     
-    // Initialize settings panel
-    initializeSettingsPanel();
-    
-    // Add event listeners for theme switching
-    setupThemeSwitching();
-    
-    // Add event listeners for plot download buttons
-    setupPlotDownloadButtons();
-    
-    // Add tooltips
-    setupTooltips();
+    // Wait for React to finish rendering
+    setTimeout(function() {
+        // Initialize theme from localStorage
+        initializeTheme();
+        
+        // Initialize settings panel
+        initializeSettingsPanel();
+        
+        // Add event listeners for theme switching
+        setupThemeSwitching();
+        
+        // Add event listeners for plot download buttons
+        setupPlotDownloadButtons();
+        
+        // Add tooltips
+        setupTooltips();
+    }, 500); // Give React time to render
 });
 
 /**
