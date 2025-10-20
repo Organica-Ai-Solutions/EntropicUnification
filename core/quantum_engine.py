@@ -59,7 +59,7 @@ class QuantumEngine:
         @qml.qnode(self.device, interface=self.config.interface, diff_method="best")
         def circuit(weights: torch.Tensor, time: float, psi0: Optional[torch.Tensor] = None):
             if psi0 is not None:
-                qml.QubitStateVector(psi0, wires=range(num_qubits))
+                qml.StatePrep(psi0, wires=range(num_qubits))
             else:
                 # Initialize in a more complex state than just |0...0>
                 for i in range(num_qubits):
@@ -120,8 +120,12 @@ class QuantumEngine:
         time: float,
         initial_state: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        if parameters.numel() != self.depth * 2 * self.num_qubits:
-            raise ValueError("Parameter tensor has incorrect shape for ansatz")
+        # Calculate expected number of parameters
+        total_params = (self.params_per_qubit * self.num_qubits + 
+                       self.params_per_entangler * (self.num_qubits - 1)) * self.depth
+        
+        if parameters.numel() != total_params:
+            raise ValueError(f"Parameter tensor has incorrect shape for ansatz. Expected {total_params} parameters, got {parameters.numel()}")
 
         state = self.ansatz(parameters, time, initial_state)
         return torch.as_tensor(state, dtype=torch.complex128)
@@ -147,18 +151,62 @@ class QuantumEngine:
         return torch.abs(torch.dot(state1.conj(), state2)) ** 2
 
     def reduced_density_matrix(self, state: torch.Tensor, keep_qubits: Sequence[int]) -> torch.Tensor:
-        num_qubits = self.num_qubits
+        """Compute reduced density matrix using a simpler approach."""
+        # For now, let's use a very simple approach for small systems
+        # This is not efficient for large systems but will work for our demo
+        
+        # Create full density matrix
         rho = torch.outer(state, state.conj())
-
-        full_axes = list(range(num_qubits))
-        trace_axes = [ax for ax in full_axes if ax not in keep_qubits]
-
-        reshaped = rho.reshape([2] * (2 * num_qubits))
-        for axis in reversed(trace_axes):
-            reshaped = torch.trace(reshaped, dim1=axis, dim2=axis + num_qubits)
-
-        final_dim = 2 ** len(keep_qubits)
-        return reshaped.reshape(final_dim, final_dim)
+        
+        # If we're keeping all qubits, just return the full matrix
+        if len(keep_qubits) == self.num_qubits:
+            return rho
+            
+        # For small systems, we can just compute the reduced matrix directly
+        # by summing over the appropriate basis states
+        n = self.num_qubits
+        keep_qubits = list(keep_qubits)
+        trace_qubits = [i for i in range(n) if i not in keep_qubits]
+        
+        # Dimensions of the reduced matrix
+        dim_reduced = 2 ** len(keep_qubits)
+        
+        # Create the reduced density matrix
+        rho_reduced = torch.zeros((dim_reduced, dim_reduced), dtype=torch.complex128)
+        
+        # Iterate over all basis states of the kept qubits
+        for i in range(dim_reduced):
+            for j in range(dim_reduced):
+                # Convert to binary representation
+                i_bin = format(i, f'0{len(keep_qubits)}b')
+                j_bin = format(j, f'0{len(keep_qubits)}b')
+                
+                # Sum over all possible states of the traced qubits
+                for k in range(2 ** len(trace_qubits)):
+                    k_bin = format(k, f'0{len(trace_qubits)}b')
+                    
+                    # Construct the full basis state indices
+                    full_i = ['0'] * n
+                    full_j = ['0'] * n
+                    
+                    # Fill in the kept qubits
+                    for idx, qubit in enumerate(keep_qubits):
+                        full_i[qubit] = i_bin[idx]
+                        full_j[qubit] = j_bin[idx]
+                    
+                    # Fill in the traced qubits (same for both i and j)
+                    for idx, qubit in enumerate(trace_qubits):
+                        full_i[qubit] = k_bin[idx]
+                        full_j[qubit] = k_bin[idx]
+                    
+                    # Convert binary strings to indices
+                    full_i_idx = int(''.join(full_i), 2)
+                    full_j_idx = int(''.join(full_j), 2)
+                    
+                    # Add to the reduced density matrix
+                    rho_reduced[i, j] += rho[full_i_idx, full_j_idx]
+        
+        return rho_reduced
 
     def random_parameters(self, scale: float = 1.0) -> torch.Tensor:
         return scale * torch.randn(self.depth, 2, self.num_qubits, dtype=torch.float64)

@@ -51,7 +51,16 @@ EntropicUnification/
 │   ├── entropy_module.py          # Entanglement entropy (S_ent, ∇S)
 │   ├── coupling_layer.py          # Entropy-curvature coupling
 │   ├── loss_functions.py          # Optimization objectives
-│   └── optimizer.py               # Training loop and convergence
+│   ├── optimizer.py               # Training loop and convergence
+│   ├── advanced_optimizer.py      # Enhanced optimization strategies
+│   └── utils/                     # Utility functions
+│       └── finite_difference.py   # Robust finite difference methods
+│
+├── examples/                       # Example scripts
+│   ├── entropic_simulation.py     # Main simulation example
+│   ├── compare_stress_tensors.py  # Comparative analysis
+│   ├── test_original_geometry.py  # Geometry engine tests
+│   └── README.md                  # Examples documentation
 │
 ├── data/                           # Configuration and constants
 │   ├── configs.yaml               # System parameters
@@ -74,6 +83,7 @@ EntropicUnification/
 ├── WHITEPAPER.md                   # Comprehensive theoretical document
 ├── QUICKSTART.md                   # Getting started guide
 ├── PROJECT_STRUCTURE.md            # Detailed project architecture
+├── IMPROVEMENTS.md                 # Framework enhancements documentation
 └── INDEX.md                        # Complete documentation index
 ```
 
@@ -107,6 +117,10 @@ While the specific formulation presented here is exploratory rather than a valid
 - **Tensor Calculus**: Implements differential geometry operations for spacetime curvature
 - **Entropy Calculations**: Computes von Neumann entropy and its gradients for quantum subsystems
 - **Visualization Tools**: Provides real-time monitoring of entropy-curvature relationships
+- **Advanced Optimization**: Multiple strategies including basin hopping and simulated annealing
+- **Higher Curvature Terms**: Support for Gauss-Bonnet and other higher curvature corrections
+- **Edge Mode Handling**: Models edge mode contributions to entanglement entropy
+- **Stress Tensor Formulations**: Multiple formulations of the entropic stress-energy tensor
 
 ## Setup and Installation
 
@@ -190,10 +204,13 @@ The framework implements:
 
 1. Integration with real quantum hardware
 2. Extended geometric calculations (full Riemann tensor)
-3. Advanced optimization techniques
-4. Visualization tools for entropy-geometry relationships
+3. Advanced optimization techniques (implemented in v1.1)
+4. Visualization tools for entropy-geometry relationships (enhanced in v1.1)
 5. Applications to black hole information paradox
 6. Cosmological simulations for early universe dynamics
+7. Comparative analysis of different stress tensor formulations (added in v1.1)
+8. Edge mode contributions to entanglement entropy (added in v1.1)
+9. Higher curvature corrections to Einstein's equations (added in v1.1)
 
 ## Documentation
 
@@ -267,5 +284,5 @@ This framework is intended to spark discussion, inspire new computational approa
 We welcome collaboration, critique, and contributions to refine both the theoretical foundations and computational implementation.
 
 *Last Updated: October 2025*  
-*Version: 1.0*  
+*Version: 1.1*  
 *Framework: EntropicUnification*

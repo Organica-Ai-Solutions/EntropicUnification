@@ -189,7 +189,15 @@ def run_simulation(components, config, state_type='bell'):
     
     # Create parameters and times
     num_qubits = quantum_engine.num_qubits
-    parameters = torch.randn(quantum_engine.depth, 2, num_qubits, dtype=torch.float64)
+    depth = quantum_engine.depth
+    
+    # Calculate total parameters needed based on the quantum engine's configuration
+    params_per_qubit = quantum_engine.params_per_qubit  # 4: RY, RZ, RX, time evolution
+    params_per_entangler = quantum_engine.params_per_entangler  # 2: CRX, CRZ
+    total_params = (params_per_qubit * num_qubits + params_per_entangler * (num_qubits - 1)) * depth
+    
+    # Create parameter tensor with the correct shape
+    parameters = torch.randn(total_params, dtype=torch.float64)
     times = torch.linspace(0, 1, 10, dtype=torch.float64)
     
     # Define partition (first half of qubits)
@@ -269,48 +277,337 @@ def analyze_results(components, results, config):
     }
 
 
+def compare_results(all_results, all_analyses, output_dir):
+    """Generate comparative analysis of different quantum states."""
+    print("\nGenerating comparative analysis...")
+    
+    # Create output directory
+    plot_dir = Path(output_dir) / "comparative"
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Set global plot style
+    plt.style.use('seaborn-v0_8-whitegrid')
+    plt.rcParams.update({
+        'font.size': 12,
+        'axes.labelsize': 14,
+        'axes.titlesize': 16,
+        'xtick.labelsize': 12,
+        'ytick.labelsize': 12,
+        'legend.fontsize': 12,
+        'figure.titlesize': 18
+    })
+    
+    # Compare loss convergence
+    plt.figure(figsize=(12, 8))
+    
+    for state_type, results in all_results.items():
+        iterations = range(len(results['history']['total_loss']))
+        plt.plot(iterations, results['history']['total_loss'], linewidth=2, 
+                label=f'{state_type.upper()} State')
+    
+    plt.yscale('log')
+    plt.xlabel('Optimization Iteration', fontweight='bold')
+    plt.ylabel('Total Loss (log scale)', fontweight='bold')
+    plt.legend(loc='upper right', frameon=True, fancybox=True, shadow=True)
+    plt.title('Loss Convergence Comparison Across Quantum States', fontweight='bold', pad=20)
+    plt.grid(True, linestyle='--', alpha=0.7)
+    
+    # Add explanatory text
+    explanation = (
+        "This plot compares optimization convergence for different initial quantum states.\n"
+        "Lower final loss values indicate better alignment between entropy and geometry.\n"
+        "Convergence patterns reveal how different quantum states affect the entropic-geometric coupling."
+    )
+    plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
+               bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+    
+    plt.tight_layout(rect=[0, 0.08, 1, 0.95])
+    plt.savefig(plot_dir / 'loss_comparison.png', dpi=300)
+    
+    # Compare area law coefficients
+    plt.figure(figsize=(10, 8))
+    
+    state_types = list(all_analyses.keys())
+    coefficients = [all_analyses[s]['area_law']['area_law_coefficient'] for s in state_types]
+    r_squared = [all_analyses[s]['area_law']['r_squared'] for s in state_types]
+    
+    x = np.arange(len(state_types))
+    width = 0.35
+    
+    fig, ax = plt.subplots(figsize=(12, 8))
+    bars1 = ax.bar(x - width/2, coefficients, width, label='Area Law Coefficient', color='blue')
+    bars2 = ax.bar(x + width/2, r_squared, width, label='R² Value', color='red')
+    
+    ax.set_xlabel('Quantum State Type', fontweight='bold')
+    ax.set_ylabel('Value', fontweight='bold')
+    ax.set_title('Area Law Metrics Comparison', fontweight='bold', pad=20)
+    ax.set_xticks(x)
+    ax.set_xticklabels([s.upper() for s in state_types])
+    ax.legend()
+    
+    # Add value labels on bars
+    for bars in [bars1, bars2]:
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height:.4f}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),
+                        textcoords="offset points",
+                        ha='center', va='bottom',
+                        fontsize=10)
+    
+    # Add explanatory text
+    explanation = (
+        "This chart compares how different quantum states conform to the area law relationship.\n"
+        "Area Law Coefficient: Proportionality constant between entropy and boundary area.\n"
+        "R² Value: Statistical measure of how well the data fits the area law (higher is better).\n"
+        "Ideal holographic systems would have coefficient = 0.25 (Bekenstein-Hawking) and R² = 1.0."
+    )
+    plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
+               bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+    
+    plt.tight_layout(rect=[0, 0.08, 1, 0.95])
+    plt.savefig(plot_dir / 'area_law_comparison.png', dpi=300)
+    
+    # Compare entropy components
+    plt.figure(figsize=(15, 10))
+    
+    # Extract entropy components for each state
+    bulk_values = [all_analyses[s]['entropy_components']['bulk'] for s in state_types]
+    edge_values = [all_analyses[s]['entropy_components']['edge_modes'] for s in state_types]
+    uv_values = [all_analyses[s]['entropy_components']['uv_correction'] for s in state_types]
+    
+    # Set up the bar chart
+    x = np.arange(len(state_types))
+    width = 0.25
+    
+    fig, ax = plt.subplots(figsize=(12, 8))
+    bars1 = ax.bar(x - width, bulk_values, width, label='Bulk Entropy', color='#3498db')
+    bars2 = ax.bar(x, edge_values, width, label='Edge Modes', color='#e74c3c')
+    bars3 = ax.bar(x + width, uv_values, width, label='UV Correction', color='#2ecc71')
+    
+    ax.set_xlabel('Quantum State Type', fontweight='bold')
+    ax.set_ylabel('Entropy Value', fontweight='bold')
+    ax.set_title('Entropy Components Comparison', fontweight='bold', pad=20)
+    ax.set_xticks(x)
+    ax.set_xticklabels([s.upper() for s in state_types])
+    ax.legend()
+    
+    # Add value labels on bars
+    for bars in [bars1, bars2, bars3]:
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height:.4f}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3),
+                        textcoords="offset points",
+                        ha='center', va='bottom',
+                        fontsize=10)
+    
+    # Add explanatory text
+    explanation = (
+        "This chart compares entropy components across different quantum states.\n"
+        "Bulk Entropy: Standard von Neumann entropy from quantum state bipartition.\n"
+        "Edge Modes: Contribution from gauge degrees of freedom at the entangling surface.\n"
+        "UV Correction: Regularization effects from the UV cutoff.\n"
+        "The distribution of components reveals how different states encode information geometrically."
+    )
+    plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
+               bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+    
+    plt.tight_layout(rect=[0, 0.08, 1, 0.95])
+    plt.savefig(plot_dir / 'entropy_components_comparison.png', dpi=300)
+    
+    # Create summary table
+    fig, ax = plt.subplots(figsize=(15, 10))
+    ax.axis('off')
+    
+    # Collect summary data
+    data = []
+    columns = ['State Type', 'Final Loss', 'Area Coeff.', 'R²', 'S/A Ratio', 'Ricci Scalar', 
+              'Bulk Entropy', 'Edge Modes', 'Converged']
+    
+    for state in state_types:
+        results = all_results[state]
+        analysis = all_analyses[state]
+        
+        data.append([
+            state.upper(),
+            f"{results['history']['total_loss'][-1]:.6f}",
+            f"{analysis['area_law']['area_law_coefficient']:.4f}",
+            f"{analysis['area_law']['r_squared']:.4f}",
+            f"{analysis['holographic']['entropy_area_ratio']:.4f}",
+            f"{analysis['holographic']['ricci_scalar']:.4f}",
+            f"{analysis['entropy_components']['bulk']:.4f}",
+            f"{analysis['entropy_components']['edge_modes']:.4f}",
+            str(analysis['convergence']['converged'])
+        ])
+    
+    # Create table
+    table = ax.table(cellText=data, colLabels=columns, loc='center', cellLoc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(12)
+    table.scale(1.2, 2)
+    
+    # Style the table
+    for i, key in enumerate(table._cells):
+        cell = table._cells[key]
+        if i < len(columns):  # Header
+            cell.set_text_props(weight='bold', color='white')
+            cell.set_facecolor('#34495e')
+        else:  # Data rows
+            cell.set_facecolor('#f8f9fa')
+            if key[1] == 0:  # State type column
+                cell.set_text_props(weight='bold')
+    
+    plt.title('EntropicUnification Comparative Results', fontweight='bold', fontsize=20, pad=20)
+    
+    # Add explanatory text
+    explanation = (
+        "This table summarizes key metrics across different quantum states.\n"
+        "Compare how different initial states affect the entropic-geometric coupling and area law relationship.\n"
+        "Lower loss values and higher R² values indicate better performance in the entropic field equations."
+    )
+    plt.figtext(0.5, 0.05, explanation, ha='center', fontsize=12, 
+               bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+    
+    plt.tight_layout(rect=[0, 0.1, 1, 0.95])
+    plt.savefig(plot_dir / 'comparative_summary.png', dpi=300)
+    
+    print(f"Comparative analysis plots saved to {plot_dir}")
+
+
 def plot_results(results, analysis, config, output_dir):
-    """Plot simulation results."""
+    """Plot simulation results with enhanced labels and explanations."""
     if not config['output']['visualize']['save_plots']:
         return
         
-    print("\nGenerating plots...")
+    print("\nGenerating enhanced plots...")
     
     # Create output directory
     plot_dir = Path(output_dir) / "plots"
     plot_dir.mkdir(parents=True, exist_ok=True)
     
+    # Set global plot style
+    plt.style.use('seaborn-v0_8-whitegrid')
+    plt.rcParams.update({
+        'font.size': 12,
+        'axes.labelsize': 14,
+        'axes.titlesize': 16,
+        'xtick.labelsize': 12,
+        'ytick.labelsize': 12,
+        'legend.fontsize': 12,
+        'figure.titlesize': 18
+    })
+    
     # Plot loss curves
     if 'loss_curves' in config['output']['visualize']['plot_types']:
-        plt.figure(figsize=(10, 6))
-        plt.plot(results['history']['total_loss'], label='Total Loss')
-        plt.plot(results['history']['einstein_loss'], label='Einstein Loss')
-        plt.plot(results['history']['entropy_loss'], label='Entropy Loss')
+        plt.figure(figsize=(12, 8))
+        
+        iterations = range(len(results['history']['total_loss']))
+        
+        plt.plot(iterations, results['history']['total_loss'], 'b-', linewidth=2, label='Total Loss')
+        plt.plot(iterations, results['history']['einstein_loss'], 'r-', linewidth=2, label='Einstein Constraint Loss')
+        plt.plot(iterations, results['history']['entropy_loss'], 'g-', linewidth=2, label='Entropy Gradient Loss')
+        
+        if 'regularity_loss' in results['history']:
+            plt.plot(iterations, results['history']['regularity_loss'], 'm-', linewidth=2, label='Geometric Regularity Loss')
+        
         plt.yscale('log')
-        plt.xlabel('Iteration')
-        plt.ylabel('Loss')
-        plt.legend()
-        plt.title('Entropic Optimization Progress')
-        plt.savefig(plot_dir / 'loss_curves.png')
+        plt.xlabel('Optimization Iteration', fontweight='bold')
+        plt.ylabel('Loss Value (log scale)', fontweight='bold')
+        plt.legend(loc='upper right', frameon=True, fancybox=True, shadow=True)
+        
+        plt.title('EntropicUnification Optimization Progress', fontweight='bold', pad=20)
+        
+        # Add explanatory text
+        explanation = (
+            "Loss curves show the optimization progress of the entropic field equations.\n"
+            "Einstein Loss: Measures consistency between geometry and entropic stress-energy.\n"
+            "Entropy Loss: Measures alignment of entropy gradients with target values.\n"
+            "Decreasing trend indicates convergence toward a consistent solution."
+        )
+        plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
+                   bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+        
+        plt.tight_layout(rect=[0, 0.08, 1, 0.95])
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.savefig(plot_dir / 'loss_curves.png', dpi=300)
         
     # Plot entropy vs area
     if 'entropy_vs_area' in config['output']['visualize']['plot_types']:
-        plt.figure(figsize=(8, 6))
-        plt.scatter(analysis['area_law']['areas'], analysis['area_law']['entropies'])
+        plt.figure(figsize=(10, 8))
+        
+        areas = np.array(analysis['area_law']['areas'])
+        entropies = np.array(analysis['area_law']['entropies'])
+        
+        # Plot data points
+        plt.scatter(areas, entropies, s=80, color='blue', alpha=0.7, 
+                   label='Simulation Data', edgecolors='navy')
         
         # Plot best fit line
-        areas = np.array(analysis['area_law']['areas'])
         coefficient = analysis['area_law']['area_law_coefficient']
         intercept = analysis['area_law']['intercept']
-        plt.plot(areas, coefficient * areas + intercept, 'r--', 
-                label=f'S = {coefficient:.4f}A + {intercept:.4f}')
+        r_squared = analysis['area_law']['r_squared']
         
-        plt.xlabel('Boundary Area')
-        plt.ylabel('Entanglement Entropy')
-        plt.title('Entropy-Area Relationship')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(plot_dir / 'entropy_area.png')
+        x_line = np.linspace(min(areas) * 0.9, max(areas) * 1.1, 100)
+        y_line = coefficient * x_line + intercept
+        
+        plt.plot(x_line, y_line, 'r--', linewidth=2, 
+                label=f'S = {coefficient:.4f}A + {intercept:.4f}  (R² = {r_squared:.4f})')
+        
+        # Add reference line for perfect area law
+        if config['output'].get('show_ideal_area_law', True):
+            plt.plot(x_line, 0.25 * x_line, 'g:', linewidth=2, 
+                    label='Ideal Bekenstein-Hawking: S = A/4')
+        
+        plt.xlabel('Boundary Area (normalized)', fontweight='bold')
+        plt.ylabel('Entanglement Entropy (normalized)', fontweight='bold')
+        plt.title('Holographic Entanglement Entropy - Area Law Relationship', fontweight='bold', pad=20)
+        plt.legend(loc='upper left', frameon=True, fancybox=True, shadow=True)
+        
+        # Add explanatory text
+        explanation = (
+            "This plot shows the relationship between entanglement entropy and boundary area.\n"
+            f"The fitted coefficient ({coefficient:.4f}) represents the area law proportionality constant.\n"
+            f"R² value of {r_squared:.4f} indicates how well the data follows the area law.\n"
+            "In holographic theories, entropy is expected to be proportional to area (S ∝ A)."
+        )
+        plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
+                   bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+        
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.tight_layout(rect=[0, 0.08, 1, 0.95])
+        plt.savefig(plot_dir / 'entropy_area.png', dpi=300)
+        
+    # Plot entropy components
+    plt.figure(figsize=(10, 8))
+    components = analysis['entropy_components']
+    
+    # Create pie chart of entropy components
+    labels = ['Bulk Entropy', 'Edge Modes', 'UV Correction']
+    sizes = [components['bulk'], components['edge_modes'], components['uv_correction']]
+    colors = ['#3498db', '#e74c3c', '#2ecc71']
+    explode = (0, 0.1, 0)  # explode edge modes slice
+    
+    plt.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%',
+            shadow=True, startangle=90, textprops={'fontweight': 'bold'})
+    plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle
+    
+    plt.title('Entropy Components Distribution', fontweight='bold', pad=20)
+    
+    # Add explanatory text
+    explanation = (
+        "This chart shows the relative contributions to the total entanglement entropy.\n"
+        "Bulk Entropy: Standard von Neumann entropy from quantum state bipartition.\n"
+        "Edge Modes: Contribution from gauge degrees of freedom at the entangling surface.\n"
+        "UV Correction: Regularization effects from the UV cutoff."
+    )
+    plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
+               bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+    
+    plt.tight_layout(rect=[0, 0.08, 1, 0.95])
+    plt.savefig(plot_dir / 'entropy_components.png', dpi=300)
         
     # Plot metric evolution
     if 'metric_evolution' in config['output']['visualize']['plot_types'] and len(results['history']['total_loss']) > 0:
@@ -318,7 +615,7 @@ def plot_results(results, analysis, config, output_dir):
         checkpoint_files = list(Path(config['output']['results_dir']).glob('checkpoint_*.pt'))
         
         if checkpoint_files:
-            plt.figure(figsize=(12, 8))
+            plt.figure(figsize=(15, 10))
             
             # Load a few checkpoints
             checkpoints = sorted(checkpoint_files)
@@ -333,14 +630,120 @@ def plot_results(results, analysis, config, output_dir):
                 
                 # Plot as heatmap in subplot
                 plt.subplot(1, len(checkpoints), i+1)
-                plt.imshow(metric.numpy(), cmap='viridis')
-                plt.colorbar(fraction=0.046, pad=0.04)
-                plt.title(f"Step {checkpoint['step']}")
+                im = plt.imshow(metric.numpy(), cmap='viridis')
+                plt.colorbar(im, fraction=0.046, pad=0.04)
+                plt.title(f"Iteration {checkpoint['step']}", fontweight='bold')
+                plt.xlabel('μ', fontweight='bold')
+                plt.ylabel('ν', fontweight='bold')
                 
-            plt.tight_layout()
-            plt.savefig(plot_dir / 'metric_evolution.png')
+            plt.suptitle('Spacetime Metric Evolution (g_μν)', fontweight='bold', fontsize=18)
+            
+            # Add explanatory text
+            explanation = (
+                "These heatmaps show the evolution of the spacetime metric tensor (g_μν) during optimization.\n"
+                "Color intensity represents the metric component values at each point.\n"
+                "Changes in the metric reflect how spacetime geometry responds to entanglement entropy."
+            )
+            plt.figtext(0.5, 0.01, explanation, ha='center', fontsize=12, 
+                       bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+            
+            plt.tight_layout(rect=[0, 0.08, 1, 0.95])
+            plt.savefig(plot_dir / 'metric_evolution.png', dpi=300)
     
-    print(f"Plots saved to {plot_dir}")
+    # Create a summary plot with key metrics
+    plt.figure(figsize=(12, 10))
+    plt.subplot(2, 2, 1)
+    
+    # Plot final loss values
+    loss_labels = ['Total', 'Einstein', 'Entropy', 'Regularity']
+    loss_values = [
+        results['history']['total_loss'][-1],
+        results['history']['einstein_loss'][-1],
+        results['history']['entropy_loss'][-1],
+        results['history'].get('regularity_loss', [0])[-1]
+    ]
+    
+    bars = plt.bar(loss_labels, loss_values, color=['blue', 'red', 'green', 'purple'])
+    plt.yscale('log')
+    plt.title('Final Loss Values', fontweight='bold')
+    plt.ylabel('Loss (log scale)', fontweight='bold')
+    
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height,
+                f'{height:.2e}',
+                ha='center', va='bottom', rotation=0, fontsize=10)
+    
+    # Plot entropy components
+    plt.subplot(2, 2, 2)
+    component_labels = ['Bulk', 'Edge Modes', 'UV Correction', 'Total']
+    component_values = [
+        components['bulk'],
+        components['edge_modes'],
+        components['uv_correction'],
+        components['total']
+    ]
+    
+    bars = plt.bar(component_labels, component_values, color=['#3498db', '#e74c3c', '#2ecc71', '#f39c12'])
+    plt.title('Entropy Components', fontweight='bold')
+    plt.ylabel('Entropy Value', fontweight='bold')
+    
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height,
+                f'{height:.4f}',
+                ha='center', va='bottom', fontsize=10)
+    
+    # Plot holographic metrics
+    plt.subplot(2, 2, 3)
+    holo_labels = ['Entropy', 'Area Est.', 'S/A Ratio', 'Ricci Scalar']
+    holo_values = [
+        analysis['holographic']['entropy'],
+        analysis['holographic']['area_estimate'],
+        analysis['holographic']['entropy_area_ratio'],
+        analysis['holographic']['ricci_scalar']
+    ]
+    
+    bars = plt.bar(holo_labels, holo_values, color=['#9b59b6', '#34495e', '#1abc9c', '#d35400'])
+    plt.title('Holographic Metrics', fontweight='bold')
+    plt.ylabel('Value', fontweight='bold')
+    
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height,
+                f'{height:.4f}',
+                ha='center', va='bottom', fontsize=10)
+    
+    # Plot area law metrics
+    plt.subplot(2, 2, 4)
+    plt.axis('off')
+    
+    # Create a text box with area law metrics
+    area_law_text = (
+        "AREA LAW ANALYSIS\n"
+        "------------------------\n"
+        f"Coefficient: {analysis['area_law']['area_law_coefficient']:.4f}\n"
+        f"Intercept: {analysis['area_law']['intercept']:.4f}\n"
+        f"R² Value: {analysis['area_law']['r_squared']:.4f}\n\n"
+        "CONVERGENCE STATUS\n"
+        "------------------------\n"
+        f"Converged: {analysis['convergence']['converged']}\n"
+        f"Final Loss: {analysis['convergence']['final_loss']:.6f}\n"
+        f"Best Loss: {analysis['convergence']['best_loss']:.6f}\n"
+    )
+    
+    plt.text(0.5, 0.5, area_law_text, ha='center', va='center', fontsize=12,
+            bbox=dict(facecolor='#f8f9fa', alpha=0.8, boxstyle='round,pad=0.8'),
+            fontfamily='monospace')
+    
+    plt.suptitle('EntropicUnification Simulation Summary', fontweight='bold', fontsize=18)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.savefig(plot_dir / 'simulation_summary.png', dpi=300)
+    
+    print(f"Enhanced plots saved to {plot_dir}")
 
 
 def main():
@@ -351,8 +754,13 @@ def main():
     parser.add_argument('--output', type=str, default='results',
                         help='Output directory')
     parser.add_argument('--state', type=str, default='bell',
-                        choices=['bell', 'ghz', 'random'],
-                        help='Initial quantum state type')
+                        choices=['bell', 'ghz', 'random', 'all'],
+                        help='Initial quantum state type (use "all" to run all types)')
+    parser.add_argument('--stress', type=str, default=None,
+                        choices=['jacobson', 'canonical', 'faulkner', 'modified'],
+                        help='Stress tensor formulation to use')
+    parser.add_argument('--iterations', type=int, default=None,
+                        help='Override number of optimization iterations')
     args = parser.parse_args()
     
     # Load configuration
@@ -361,17 +769,61 @@ def main():
     # Update output directory
     config['output']['results_dir'] = args.output
     
+    # Override iterations if specified
+    if args.iterations is not None:
+        config['optimization']['steps'] = args.iterations
+        print(f"Overriding iterations to {args.iterations}")
+    
+    # Override stress tensor formulation if specified
+    if args.stress is not None:
+        config['coupling']['stress_form'] = args.stress
+        print(f"Using {args.stress} stress tensor formulation")
+    
     # Set up components
     components = setup_components(config)
     
-    # Run simulation
-    results = run_simulation(components, config, args.state)
-    
-    # Analyze results
-    analysis = analyze_results(components, results, config)
-    
-    # Plot results
-    plot_results(results, analysis, config, args.output)
+    if args.state == 'all':
+        # Run simulations for all state types
+        states = ['bell', 'ghz', 'random']
+        all_results = {}
+        all_analyses = {}
+        
+        for state_type in states:
+            print(f"\n{'='*50}")
+            print(f"Running simulation with {state_type.upper()} state")
+            print(f"{'='*50}")
+            
+            # Create state-specific output directory
+            state_output = f"{args.output}/{state_type}"
+            os.makedirs(state_output, exist_ok=True)
+            
+            # Update output directory in config
+            config['output']['results_dir'] = state_output
+            
+            # Run simulation for this state
+            results = run_simulation(components, config, state_type)
+            analysis = analyze_results(components, results, config)
+            
+            # Plot results
+            plot_results(results, analysis, config, state_output)
+            
+            # Store results and analysis
+            all_results[state_type] = results
+            all_analyses[state_type] = analysis
+        
+        # Generate comparative analysis
+        print("\nGenerating comparative analysis...")
+        compare_results(all_results, all_analyses, args.output)
+        
+    else:
+        # Run simulation for the specified state
+        results = run_simulation(components, config, args.state)
+        
+        # Analyze results
+        analysis = analyze_results(components, results, config)
+        
+        # Plot results
+        plot_results(results, analysis, config, args.output)
     
     print("\nSimulation complete!")
 

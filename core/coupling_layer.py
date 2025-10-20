@@ -41,6 +41,10 @@ class CouplingTerms:
     coupling_residual: torch.Tensor
     edge_mode_contribution: Optional[torch.Tensor] = None
     higher_curvature_terms: Optional[torch.Tensor] = None
+    
+    def __getitem__(self, key):
+        """Make the class subscriptable to access its fields."""
+        return getattr(self, key)
 
 
 class CouplingLayer:
@@ -114,22 +118,53 @@ class CouplingLayer:
         if self.stress_form == StressTensorFormulation.JACOBSON:
             # Jacobson's thermodynamic formulation:
             # T_μν = (ℏ/2π)[∇_μS ∇_νS - (1/2)g_μν (∇S)²]
-            contraction = torch.dot(entropy_gradient, entropy_gradient)
-            T = torch.outer(entropy_gradient, entropy_gradient)
+            
+            # Ensure entropy gradient has the right dimensions for spacetime
+            # We need to project the quantum state gradient to spacetime dimensions
+            dim = self.geometry.dimensions
+            if entropy_gradient.shape[0] != dim:
+                # Project to spacetime dimensions using a simple mapping
+                # This is a heuristic approach for demonstration purposes
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype)
+                # Use the first dim components or pad with zeros
+                entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
+            else:
+                entropy_grad_spacetime = entropy_gradient
+                
+            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
+            T = torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
             T = self.hbar_factor * (T - 0.5 * metric * contraction)
             
         elif self.stress_form == StressTensorFormulation.CANONICAL:
             # Simple outer product:
             # T_μν = (ℏ/2π)∇_μS ∇_νS
-            T = self.hbar_factor * torch.outer(entropy_gradient, entropy_gradient)
+            
+            # Ensure entropy gradient has the right dimensions for spacetime
+            dim = self.geometry.dimensions
+            if entropy_gradient.shape[0] != dim:
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype)
+                entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
+            else:
+                entropy_grad_spacetime = entropy_gradient
+                
+            T = self.hbar_factor * torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
             
         elif self.stress_form == StressTensorFormulation.FAULKNER:
             # Faulkner's linearized Einstein formulation:
             # T_μν = (ℏ/2π)[∇_μ∇_νS - (□S)g_μν]
             # This requires computing second derivatives of entropy
             # For now, we approximate with a modified Jacobson form
-            contraction = torch.dot(entropy_gradient, entropy_gradient)
-            T = torch.outer(entropy_gradient, entropy_gradient)
+            
+            # Ensure entropy gradient has the right dimensions for spacetime
+            dim = self.geometry.dimensions
+            if entropy_gradient.shape[0] != dim:
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype)
+                entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
+            else:
+                entropy_grad_spacetime = entropy_gradient
+                
+            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
+            T = torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
             
             # Add a term that approximates the effect of second derivatives
             trace_term = contraction * metric
@@ -139,8 +174,17 @@ class CouplingLayer:
             # Modified formulation with corrections for non-conformal fields:
             # T_μν = (ℏ/2π)[∇_μS ∇_νS - (1/2)g_μν (∇S)² + α R_μν]
             # where α is a non-conformality parameter
-            contraction = torch.dot(entropy_gradient, entropy_gradient)
-            T = torch.outer(entropy_gradient, entropy_gradient)
+            
+            # Ensure entropy gradient has the right dimensions for spacetime
+            dim = self.geometry.dimensions
+            if entropy_gradient.shape[0] != dim:
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype)
+                entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
+            else:
+                entropy_grad_spacetime = entropy_gradient
+                
+            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
+            T = torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
             
             # Basic Jacobson term
             T = self.hbar_factor * (T - 0.5 * metric * contraction)
@@ -204,7 +248,16 @@ class CouplingLayer:
         g = self.geometry.metric
         
         # G_μν = R_μν - (1/2)R g_μν
-        G = ricci[self.geometry.active_index] - 0.5 * R * g
+        # Ensure dimensions match for the calculation
+        active_idx = self.geometry.active_index
+        ricci_active = ricci[active_idx]
+        
+        # For scalar * tensor multiplication, we need to reshape the scalar
+        # to ensure broadcasting works correctly
+        R_active = R[active_idx]
+        
+        # Create the Einstein tensor with proper broadcasting
+        G = ricci_active - 0.5 * R_active * g
         
         # Add cosmological constant if non-zero
         if abs(self.lambda_cosmo) > 1e-10:
@@ -218,9 +271,9 @@ class CouplingLayer:
             # For simplicity, we'll approximate this with a term proportional to
             # the Ricci tensor squared minus trace squared
             
-            ricci_active = ricci[self.geometry.active_index]
+            # We already have ricci_active from above
             ricci_squared = torch.matmul(ricci_active, ricci_active)
-            ricci_trace = torch.trace(ricci_active)
+            ricci_trace = torch.sum(torch.diagonal(ricci_active, dim1=0, dim2=1))
             
             # Approximate Gauss-Bonnet contribution
             gb_term = ricci_squared - 0.5 * (ricci_trace**2) * g
