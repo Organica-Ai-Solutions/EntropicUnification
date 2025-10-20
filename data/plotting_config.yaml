@@ -1,0 +1,128 @@
+# EntropicUnification Plotting Configuration
+
+# General plotting settings
+general:
+  style: "seaborn-v0_8-whitegrid"
+  dpi: 300
+  save_format: "png"
+  font_family: "sans-serif"
+  font_size: 12
+  title_size: 18
+  label_size: 14
+  legend_size: 12
+  tick_size: 12
+  
+# Plot types to generate
+plot_types:
+  - "loss_curves"
+  - "entropy_area"
+  - "entropy_components"
+  - "metric_evolution"
+  - "simulation_summary"
+  - "curvature_maps"
+  - "stress_tensor"
+  
+# Plot-specific settings
+loss_curves:
+  figsize: [12, 8]
+  yscale: "log"
+  colors:
+    total: "blue"
+    einstein: "red"
+    entropy: "green"
+    regularity: "purple"
+  linewidth: 2
+  grid: true
+  grid_alpha: 0.7
+  
+entropy_area:
+  figsize: [10, 8]
+  scatter_size: 80
+  scatter_color: "blue"
+  scatter_alpha: 0.7
+  line_color: "red"
+  line_style: "--"
+  linewidth: 2
+  reference_line: true
+  reference_color: "green"
+  reference_style: ":"
+  
+entropy_components:
+  figsize: [10, 8]
+  colors:
+    bulk: "#3498db"
+    edge_modes: "#e74c3c"
+    uv_correction: "#2ecc71"
+    total: "#f39c12"
+  explode: [0, 0.1, 0]
+  
+metric_evolution:
+  figsize: [15, 10]
+  cmap: "viridis"
+  colorbar_fraction: 0.046
+  colorbar_pad: 0.04
+  max_checkpoints: 5
+  
+simulation_summary:
+  figsize: [12, 10]
+  layout: [2, 2]
+  colors:
+    loss:
+      total: "blue"
+      einstein: "red"
+      entropy: "green"
+      regularity: "purple"
+    components:
+      bulk: "#3498db"
+      edge_modes: "#e74c3c"
+      uv_correction: "#2ecc71"
+      total: "#f39c12"
+    holographic:
+      entropy: "#9b59b6"
+      area: "#34495e"
+      ratio: "#1abc9c"
+      ricci: "#d35400"
+  textbox_color: "#f8f9fa"
+  textbox_alpha: 0.8
+  
+curvature_maps:
+  figsize: [15, 10]
+  cmap: "coolwarm"
+  colorbar_fraction: 0.046
+  colorbar_pad: 0.04
+  
+stress_tensor:
+  figsize: [12, 8]
+  cmap: "RdBu_r"
+  colorbar_fraction: 0.046
+  colorbar_pad: 0.04
+  
+# Comparison plot settings
+comparison:
+  figsize: [14, 10]
+  colors:
+    jacobson: "#3498db"
+    canonical: "#e74c3c"
+    faulkner: "#2ecc71"
+    modified: "#9b59b6"
+  linewidth: 2
+  marker_size: 8
+  alpha: 0.8
+  grid: true
+  grid_alpha: 0.7
+  
+# Directory structure settings
+directories:
+  use_timestamp: true
+  timestamp_format: "%Y%m%d_%H%M%S"
+  subdirectories:
+    - "plots"
+    - "data"
+    - "metrics"
+  
+# Metadata settings
+metadata:
+  save: true
+  format: "json"
+  include_config: true
+  include_performance: true

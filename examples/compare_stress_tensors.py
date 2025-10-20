@@ -19,6 +19,8 @@ import seaborn as sns
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from core.utils.plotting import get_plot_manager
+
 
 def load_results(base_dir):
     """Load results from different stress tensor formulations."""

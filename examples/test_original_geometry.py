@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.geometry_engine import GeometryEngine, BoundaryCondition
+from core.utils.plotting import get_plot_manager
 
 def test_schwarzschild():
     """Test the fixed geometry engine with a Schwarzschild-like metric."""
