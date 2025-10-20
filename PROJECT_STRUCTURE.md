@@ -11,21 +11,80 @@ EntropicUnification/
 │   ├── entropy_module.py          # Entanglement entropy (S_ent, ∇S)
 │   ├── coupling_layer.py          # Entropy-curvature coupling
 │   ├── loss_functions.py          # Optimization objectives
-│   └── optimizer.py               # Training loop and convergence
+│   ├── optimizer.py               # Training loop and convergence
+│   ├── advanced_optimizer.py      # Enhanced optimization strategies
+│   ├── training_loop.py           # Legacy training loop (deprecated)
+│   └── utils/                     # Utility functions
+│       ├── __init__.py            # Package initialization
+│       ├── finite_difference.py   # Robust finite difference methods
+│       └── plotting.py            # Unified plotting system
+│
+├── dashboards/                     # Interactive dashboard
+│   ├── app.py                     # Main dashboard application
+│   ├── enhanced_app.py            # Enhanced dashboard with advanced features
+│   ├── standalone_app.py          # Standalone version (no core dependencies)
+│   ├── run_dashboard.py           # Dashboard runner script
+│   ├── assets/                    # Dashboard static assets
+│   │   ├── custom.css             # Custom styling
+│   │   └── dashboard.js           # Dashboard JavaScript
+│   ├── components/                # Dashboard UI components
+│   │   ├── control_panel.py       # Simulation control panel
+│   │   ├── results_panel.py       # Results visualization panel
+│   │   ├── explanation_panel.py   # Theoretical explanations
+│   │   ├── settings_panel.py      # Dashboard settings
+│   │   ├── help_tooltips.py       # Contextual help system
+│   │   └── interactive_plots.py   # Enhanced interactive plots
+│   └── utils/                     # Dashboard utilities
+│       ├── simulation_runner.py   # Run simulations from dashboard
+│       └── result_loader.py       # Load and process results
 │
 ├── data/                           # Configuration and constants
-│   ├── configs.yaml               # System parameters (ℏ, G, lattice size, etc.)
-│   └── constants.py               # Physical constants (legacy)
+│   ├── configs.yaml               # System parameters
+│   ├── constants.py               # Physical constants
+│   └── plotting_config.yaml       # Plotting configuration
+│
+├── docs/                           # Documentation
+│   ├── images/                    # Documentation images
+│   │   ├── entropic.jpg           # Project logo
+│   │   ├── entropy_area_plot.jpg  # Entropy-area relationship
+│   │   ├── loss_curves.jpg        # Loss convergence
+│   │   ├── entropy_components.jpg # Entropy components
+│   │   ├── metric_evolution.jpg   # Metric evolution
+│   │   └── dashboard.jpg          # Dashboard interface
+│   ├── DASHBOARD.md               # Dashboard documentation
+│   └── PLOTTING_SYSTEM.md         # Plotting system documentation
+│
+├── examples/                       # Example scripts
+│   ├── entropic_simulation.py     # Main simulation example
+│   ├── advanced_optimization.py   # Advanced optimizer usage
+│   ├── compare_stress_tensors.py  # Comparative analysis
+│   ├── enhanced_concepts.py       # Enhanced framework concepts
+│   ├── simple_simulation.py       # Simple simulation example
+│   ├── test_original_geometry.py  # Geometry engine tests
+│   └── README.md                  # Examples documentation
 │
 ├── notebooks/                      # Interactive experiments
 │   └── experiments.ipynb          # Jupyter notebook for visualization
 │
 ├── results/                        # Simulation outputs
-│   ├── entropy_curves.npy         # Entropy evolution data
-│   ├── curvature_maps.npy         # Curvature field data
-│   ├── training_logs.json         # Optimization history
-│   ├── checkpoint_*.pt            # Training checkpoints
-│   └── final_results.pt           # Final converged state
+│   ├── figures/                   # Generated visualizations
+│   ├── frames/                    # Animation frames
+│   ├── enhanced/                  # Enhanced simulation results
+│   │   ├── bell/                  # Bell state results
+│   │   ├── ghz/                   # GHZ state results
+│   │   ├── random/                # Random state results
+│   │   └── comparative/           # Comparative analysis
+│   └── stress_tensors/            # Stress tensor formulation results
+│       ├── jacobson/              # Jacobson formulation
+│       ├── canonical/             # Canonical formulation
+│       ├── faulkner/              # Faulkner formulation
+│       ├── modified/              # Modified formulation
+│       └── comparison/            # Comparative analysis
+│
+├── scripts/                        # Utility scripts
+│
+├── visualization/                  # Visualization utilities
+│   └── __init__.py                # Package initialization
 │
 ├── venv/                           # Python virtual environment
 │
@@ -33,13 +92,19 @@ EntropicUnification/
 ├── README.md                       # Project overview
 ├── WHITEPAPER.md                   # Comprehensive theoretical document
 ├── QUICKSTART.md                   # Getting started guide
-└── PROJECT_STRUCTURE.md            # This file
+├── PROJECT_STRUCTURE.md            # This file
+├── INDEX.md                        # Complete documentation index
+├── ENHANCEMENTS.md                 # Framework enhancements documentation
+├── IMPROVEMENTS.md                 # Framework improvements documentation
+└── PROGRESS_REPORT.md             # Progress report
 
 ```
 
 ## Module Descriptions
 
 ### Core Modules
+
+> **Note**: The module descriptions below reflect the current state of the framework. Some modules have been enhanced with additional features since the original documentation was written.
 
 #### 1. quantum_engine.py
 **Purpose**: Manages quantum state preparation, evolution, and measurements
@@ -213,6 +278,11 @@ For each iteration:
                     │  Yes → Save       │
                     │  No  → Continue   │
                     └───────────────────┘
+                              │
+                    ┌─────────▼─────────┐
+                    │  Dashboard        │
+                    │  Visualization    │
+                    └───────────────────┘
 ```
 
 ## Configuration System
@@ -230,49 +300,87 @@ spacetime:             # Geometric parameters
   dt: 1.0e-3
   
 quantum:               # Quantum system parameters
-  num_qubits: 4
+  num_qubits: 2        # Number of qubits (2 for Bell states)
   circuit_depth: 3
-  entanglement_cutoff: 1.0e-10
+  device: "default.qubit"
   
 optimization:          # Training parameters
   learning_rate: 1.0e-3
-  max_iterations: 10000
-  checkpoint_interval: 100
+  steps: 100
+  checkpoint_interval: 20
+  log_interval: 1
   loss_weights:
     einstein: 1.0
     entropy: 1.0
-    regularity: 0.1
+    curvature: 0.1
+    smoothness: 0.1
     
 geometry:              # Geometric constraints
-  curvature_tolerance: 1.0e-6
-  metric_regularization: 1.0e-4
-  initial_metric: "minkowski"
+  dx: 0.1
+  boundary_condition: "periodic"
+  higher_curvature_terms: true
+  metric_projection_type: "lorentzian"
+  
+entropy_module:        # Entropy calculation settings
+  matter_field_type: "scalar"
+  edge_mode_contribution: "area_dependent"
+  uv_cutoff: 1.0e-6
+  edge_mode_strength: 0.2
+  
+coupling_layer:        # Coupling settings
+  coupling_strength: 1.0
+  stress_form: "jacobson"
+  faulkner_alpha: 0.5
+  
+loss_functions:        # Loss function settings
+  loss_landscape_strategy: "basin_hopping"
+  adaptive_weighting_strategy: "gradient_norm"
+  local_minima_penalty: 0.1
   
 output:                # I/O settings
-  save_frequency: 100
+  save_frequency: 20
   log_level: "INFO"
-  results_dir: "results"
+  results_dir: "results/enhanced"
+  
+experimental:          # Experimental features
+  edge_modes:
+    enabled: true
+    dimension: 1
+    entropy_factor: 0.5
+  non_conformal:
+    enabled: true
+  higher_curvature:
+    enabled: true
+    gauss_bonnet_coupling: 0.1
 ```
 
 ## Results Directory Structure
 
 ```
 results/
-├── entropy_curves.npy        # Array of S_ent(t) over time
-├── curvature_maps.npy        # Spatial distribution of R(x,t)
-├── training_logs.json        # Complete loss history
-│   ├── total_loss: [...]
-│   ├── einstein_loss: [...]
-│   ├── entropy_loss: [...]
-│   └── regularity_loss: [...]
-├── checkpoint_100.pt         # Saved at iteration 100
-├── checkpoint_200.pt         # Saved at iteration 200
-├── ...
-└── final_results.pt          # Complete final state
-    ├── final_state
-    ├── final_metric
-    ├── training_time
-    └── history
+├── figures/                   # Generated visualizations
+├── frames/                    # Animation frames
+├── enhanced/                  # Enhanced simulation results
+│   ├── bell/                  # Bell state results
+│   │   ├── plots/              # Visualization plots
+│   │   ├── entropy_curves.npy   # Entropy evolution data
+│   │   ├── training_logs.json   # Optimization history
+│   │   └── final_results.pt     # Final converged state
+│   ├── ghz/                   # GHZ state results
+│   ├── random/                # Random state results
+│   └── comparative/           # Comparative analysis
+├── stress_tensors/            # Stress tensor formulation results
+│   ├── jacobson/              # Jacobson formulation
+│   ├── canonical/             # Canonical formulation
+│   ├── faulkner/              # Faulkner formulation
+│   ├── modified/              # Modified formulation
+│   └── comparison/            # Comparative analysis
+└── simple_simulation/         # Basic simulation results
+    ├── entropy_curves.npy      # Entropy evolution data
+    ├── curvature_maps.npy      # Spatial distribution of R(x,t)
+    ├── training_logs.json      # Complete loss history
+    ├── checkpoint_*.pt         # Training checkpoints
+    └── final_results.pt        # Complete final state
 ```
 
 ## Dependency Graph
@@ -282,15 +390,26 @@ optimizer.py
     ├── quantum_engine.py
     │   └── pennylane, torch
     ├── geometry_engine.py
-    │   └── torch
+    │   ├── torch
+    │   └── utils/finite_difference.py
     ├── entropy_module.py
     │   ├── quantum_engine.py
     │   └── numpy, torch
     ├── coupling_layer.py
     │   ├── geometry_engine.py
     │   └── entropy_module.py
-    └── loss_functions.py
-        └── coupling_layer.py
+    ├── loss_functions.py
+    │   └── coupling_layer.py
+    └── utils/plotting.py
+        └── matplotlib, plotly
+
+dashboards/app.py
+    ├── components/control_panel.py
+    ├── components/results_panel.py
+    ├── components/explanation_panel.py
+    ├── utils/simulation_runner.py
+    │   └── core modules
+    └── utils/result_loader.py
 ```
 
 ## Key Dependencies

@@ -24,24 +24,35 @@
 1. Start with [README.md](README.md) - Scientific Framework section
 2. Read [WHITEPAPER.md](WHITEPAPER.md) - Introduction and Section 2
 3. Explore the conceptual diagrams in [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+4. View the visualizations in the README.md
 
 ### Path 2: "I want to run simulations"
 1. Follow [QUICKSTART.md](QUICKSTART.md) installation
-2. Run [notebooks/experiments.ipynb](notebooks/experiments.ipynb)
-3. Modify parameters in `data/configs.yaml`
-4. Check [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for customization
+2. Run examples from the `examples/` directory
+3. Try `examples/entropic_simulation.py` or `examples/simple_simulation.py`
+4. Modify parameters in `data/configs.yaml`
+5. Check [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for customization
 
 ### Path 3: "I want to understand the mathematics"
 1. Read [WHITEPAPER.md](WHITEPAPER.md) - Sections 2-3
 2. Study the mathematical derivations in Appendix A
 3. Review implementation in `core/` modules
-4. Consult [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for data flow
+4. Examine `core/geometry_engine.py` and `core/entropy_module.py`
+5. Consult [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for data flow
 
 ### Path 4: "I want to extend the framework"
 1. Understand architecture in [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
 2. Review core modules with inline documentation
-3. Check extensibility section
-4. Read theoretical foundations in [WHITEPAPER.md](WHITEPAPER.md)
+3. Study `core/advanced_optimizer.py` for optimization strategies
+4. Explore `dashboards/` for interactive visualization
+5. Check extensibility section
+6. Read theoretical foundations in [WHITEPAPER.md](WHITEPAPER.md)
+
+### Path 5: "I want to use the dashboard"
+1. Run `python dashboards/run_dashboard.py`
+2. Explore the Control Console, Results Dashboard, and Explanations tabs
+3. Read [docs/DASHBOARD.md](docs/DASHBOARD.md) for detailed documentation
+4. Try different simulation parameters and stress tensor formulations
 
 ---
 
@@ -236,22 +247,32 @@
 ### For Theoretical Physicists
 - **Start**: WHITEPAPER.md (full read)
 - **Focus**: Sections 2, 6, 8, 11
+- **Explore**: Different stress tensor formulations in `examples/compare_stress_tensors.py`
 - **Extend**: Add new physical terms, test predictions
 
 ### For Quantum Information Scientists
 - **Start**: README.md + WHITEPAPER.md Sections 1-2
-- **Focus**: Entropy calculations, quantum circuits
+- **Focus**: Entropy calculations, quantum circuits, edge modes
+- **Explore**: Enhanced entropy components in `core/entropy_module.py`
 - **Extend**: New entanglement measures, larger systems
 
 ### For Machine Learning Researchers
 - **Start**: QUICKSTART.md + PROJECT_STRUCTURE.md
 - **Focus**: Optimization algorithm, loss functions
+- **Explore**: Advanced optimization strategies in `core/advanced_optimizer.py`
 - **Extend**: New optimizers, neural architectures
 
 ### For Computational Scientists
 - **Start**: PROJECT_STRUCTURE.md
 - **Focus**: Implementation details, performance
+- **Explore**: Finite difference methods in `core/utils/finite_difference.py`
 - **Extend**: GPU acceleration, distributed computing
+
+### For Visualization Specialists
+- **Start**: `dashboards/` directory
+- **Focus**: Interactive visualization and data presentation
+- **Explore**: Dashboard components and plotting system
+- **Extend**: New visualization types, real-time monitoring
 
 ---
 
@@ -264,25 +285,41 @@
    - Shows: Module interactions
 
 2. **Loss Curves**
-   - Location: experiments.ipynb (Cell 9)
-   - Shows: Training progress
+   - Location: README.md, `examples/entropic_simulation.py`
+   - Shows: Training progress, convergence
 
-3. **Metric Evolution**
-   - Location: experiments.ipynb (Cell 11)
+3. **Entropy-Area Relationship**
+   - Location: README.md, `examples/entropic_simulation.py`
+   - Shows: Holographic entanglement scaling
+
+4. **Entropy Components**
+   - Location: README.md, `examples/entropic_simulation.py`
+   - Shows: Bulk, edge modes, and UV contributions
+
+5. **Metric Evolution**
+   - Location: README.md, `examples/test_original_geometry.py`
    - Shows: Geometric evolution
+
+6. **Dashboard Interface**
+   - Location: README.md, `dashboards/enhanced_app.py`
+   - Shows: Interactive control console
 
 ### Creating Your Own
 
-See experiments.ipynb for examples:
+See `core/utils/plotting.py` for examples:
 ```python
-# Entropy vs. Time
-plt.plot(history['entropy'])
+# Get the plot manager
+from core.utils import get_plot_manager
+plot_manager = get_plot_manager(config)
 
-# Curvature Heatmap
-plt.imshow(curvature_map)
+# Create plots
+plot_manager.plot_loss_curves(results)
+plot_manager.plot_entropy_vs_area(results)
+plot_manager.plot_entropy_components(results)
+plot_manager.plot_metric_evolution(results)
+plot_manager.plot_simulation_summary(results)
 
-# Phase Space
-plt.scatter(entropy_history, curvature_history)
+# Or use the dashboard for interactive visualization
 ```
 
 ---
@@ -312,6 +349,12 @@ See quantum_engine.py + geometry_engine.py
 Check entropy_module.py for calculations
   ↓
 Review loss_functions.py for objectives
+  ↓
+Explore advanced_optimizer.py for strategies
+  ↓
+Check utils/plotting.py for visualization
+  ↓
+Examine dashboards/ for interactive UI
 ```
 
 ---
@@ -404,5 +447,5 @@ If you use EntropicUnification in your research:
 ---
 
 *Last Updated: October 2025*  
-*Version: 1.0*  
+*Version: 1.1*  
 *Framework: EntropicUnification*
