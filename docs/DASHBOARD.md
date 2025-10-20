@@ -20,10 +20,30 @@ python dashboards/run_dashboard.py
 
 This script will automatically determine which dashboard version to run based on the available dependencies:
 
-- If the core modules are available, it will run the full dashboard (`app.py`)
-- If the core modules are not available, it will run the standalone dashboard (`standalone_app.py`)
+- If the core modules and enhanced components are available, it will run the enhanced dashboard (`enhanced_app.py`)
+- If only the core modules are available, it will run the full dashboard (`app.py`)
+- If only the enhanced components are available, it will run the enhanced standalone dashboard (`enhanced_app.py`)
+- If neither are available, it will run the basic standalone dashboard (`standalone_app.py`)
 
 Then open your browser and navigate to `http://localhost:8050`.
+
+### Command Line Options
+
+You can specify which dashboard version to run using the `--version` flag:
+
+```bash
+# Auto-detect the best version to run (default)
+python dashboards/run_dashboard.py --version auto
+
+# Run the full dashboard (requires core modules)
+python dashboards/run_dashboard.py --version full
+
+# Run the standalone dashboard (no dependencies on core modules)
+python dashboards/run_dashboard.py --version standalone
+
+# Run the enhanced dashboard (with improved UI and features)
+python dashboards/run_dashboard.py --version enhanced
+```
 
 ### Alternative Methods
 
@@ -37,6 +57,10 @@ python app.py
 # Run the standalone dashboard (no dependencies on core modules)
 cd dashboards
 python standalone_app.py
+
+# Run the enhanced dashboard (with improved UI and features)
+cd dashboards
+python enhanced_app.py
 ```
 
 ## Dashboard Structure
@@ -81,6 +105,35 @@ The Explanations tab provides detailed information about:
 - Theoretical Background: The scientific context and significance of the framework
 
 ## Features
+
+### Basic Dashboard
+
+The dashboard consists of three main sections:
+
+1. **Control Console**: Configure and run simulations
+2. **Results Dashboard**: Visualize simulation results
+3. **Explanations**: Learn about the theoretical concepts
+
+### Enhanced Dashboard
+
+The enhanced dashboard includes all the features of the basic dashboard, plus:
+
+1. **Settings Panel**: Customize the dashboard appearance and behavior
+   - Theme switching (light/dark mode)
+   - Plot style selection
+   - Download format options
+   - Refresh interval settings
+
+2. **Interactive Plots**: Enhanced visualization features
+   - Detailed tooltips and annotations
+   - Download options for each plot
+   - Explanatory text for each visualization
+   - Improved styling and responsiveness
+
+3. **Help System**: Contextual help throughout the interface
+   - Help tooltips for each parameter
+   - Detailed explanations of concepts
+   - Quick reference guides
 
 ### Real-time Monitoring
 

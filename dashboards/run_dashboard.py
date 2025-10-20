@@ -43,13 +43,54 @@ def main():
         check_import("core.optimizer")
     ])
     
+    # Check if enhanced components are available
+    enhanced_available = all([
+        os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'components', 'settings_panel.py')),
+        os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'components', 'help_tooltips.py')),
+        os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'components', 'interactive_plots.py')),
+        os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'custom.css')),
+        os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'dashboard.js'))
+    ])
+    
+    # Parse command line arguments
+    import argparse
+    parser = argparse.ArgumentParser(description='EntropicUnification Dashboard Runner')
+    parser.add_argument('--version', choices=['full', 'standalone', 'enhanced', 'auto'], default='auto',
+                        help='Dashboard version to run (default: auto)')
+    args = parser.parse_args()
+    
     # Determine which dashboard to run
-    if core_available:
-        print("\nCore modules found. Running full dashboard...")
-        module_name = "app"
-    else:
-        print("\nCore modules not found. Running standalone dashboard...")
+    if args.version == 'full':
+        if core_available:
+            module_name = "app"
+        else:
+            print("\nWarning: Core modules not found. Cannot run full dashboard.")
+            print("Falling back to standalone dashboard.")
+            module_name = "standalone_app"
+    elif args.version == 'standalone':
         module_name = "standalone_app"
+    elif args.version == 'enhanced':
+        if enhanced_available:
+            module_name = "enhanced_app"
+        else:
+            print("\nWarning: Enhanced components not found. Cannot run enhanced dashboard.")
+            print("Falling back to standalone dashboard.")
+            module_name = "standalone_app"
+    else:  # auto
+        if core_available:
+            if enhanced_available:
+                print("\nCore modules and enhanced components found. Running enhanced dashboard...")
+                module_name = "enhanced_app"
+            else:
+                print("\nCore modules found. Running full dashboard...")
+                module_name = "app"
+        else:
+            if enhanced_available:
+                print("\nEnhanced components found. Running enhanced standalone dashboard...")
+                module_name = "enhanced_app"
+            else:
+                print("\nRunning basic standalone dashboard...")
+                module_name = "standalone_app"
     
     # Run the selected dashboard
     try:

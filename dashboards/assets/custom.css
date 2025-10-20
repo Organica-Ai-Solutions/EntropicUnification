@@ -1,0 +1,331 @@
+/* Custom CSS for EntropicUnification Dashboard */
+
+/* General styling */
+body {
+    font-family: 'Roboto', sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* Card styling */
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s, box-shadow 0.3s;
+    margin-bottom: 1.5rem;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Header styling */
+.dashboard-header {
+    padding: 1.5rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+}
+
+.dashboard-header img {
+    transition: transform 0.3s;
+}
+
+.dashboard-header img:hover {
+    transform: scale(1.05);
+}
+
+/* Tabs styling */
+.nav-tabs .nav-link {
+    font-weight: 500;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.nav-tabs .nav-link.active {
+    font-weight: 700;
+    border-top: 3px solid #2C3E50;
+}
+
+/* Button styling */
+.btn {
+    border-radius: 4px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.3s;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    border: none;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    border: none;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+    border: none;
+}
+
+/* Progress bar styling */
+.progress {
+    height: 1.5rem;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.progress-bar {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    transition: width 0.6s ease;
+}
+
+/* Form styling */
+.form-control {
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.form-control:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+
+/* Tooltip styling */
+.tooltip {
+    opacity: 0.9 !important;
+}
+
+.tooltip-inner {
+    max-width: 300px;
+    padding: 10px;
+    background-color: #2C3E50;
+    font-size: 0.9rem;
+}
+
+/* Plot styling */
+.js-plotly-plot {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* Footer styling */
+footer {
+    padding: 1.5rem 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin-top: 2rem;
+}
+
+/* Dark mode */
+.dark-mode {
+    background-color: #2C3E50;
+    color: #ECF0F1;
+}
+
+.dark-mode .card {
+    background-color: #34495E;
+    color: #ECF0F1;
+    border-color: #2C3E50;
+}
+
+.dark-mode .nav-tabs {
+    border-bottom-color: #2C3E50;
+}
+
+.dark-mode .nav-tabs .nav-link.active {
+    background-color: #34495E;
+    color: #ECF0F1;
+    border-color: #2C3E50;
+    border-top: 3px solid #3498DB;
+}
+
+.dark-mode .form-control {
+    background-color: #2C3E50;
+    color: #ECF0F1;
+    border-color: #34495E;
+}
+
+.dark-mode .form-control:focus {
+    border-color: #3498DB;
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+
+/* Animation for loading */
+@keyframes pulse {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.loading-pulse {
+    animation: pulse 1.5s infinite;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .btn {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    .dashboard-header h1 {
+        font-size: 1.75rem;
+    }
+}
+
+/* Help icon styling */
+.help-icon {
+    color: #3498DB;
+    cursor: pointer;
+    margin-left: 5px;
+    transition: transform 0.3s;
+}
+
+.help-icon:hover {
+    transform: scale(1.2);
+    color: #2980B9;
+}
+
+/* Settings panel styling */
+.settings-panel {
+    position: fixed;
+    top: 70px;
+    right: -300px;
+    width: 300px;
+    height: calc(100vh - 70px);
+    background-color: white;
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+    transition: right 0.3s;
+    z-index: 1000;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.settings-panel.open {
+    right: 0;
+}
+
+.dark-mode .settings-panel {
+    background-color: #34495E;
+    color: #ECF0F1;
+}
+
+.settings-toggle {
+    position: fixed;
+    top: 70px;
+    right: 20px;
+    z-index: 1001;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    background-color: white;
+    cursor: pointer;
+    transition: transform 0.3s;
+}
+
+.settings-toggle:hover {
+    transform: rotate(30deg);
+}
+
+.dark-mode .settings-toggle {
+    background-color: #34495E;
+    color: #ECF0F1;
+}
+
+/* Theme switch styling */
+.theme-switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.theme-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.theme-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.theme-slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .theme-slider {
+    background-color: #2196F3;
+}
+
+input:focus + .theme-slider {
+    box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .theme-slider:before {
+    transform: translateX(26px);
+}
+
+/* Plot download button styling */
+.plot-download-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 100;
+    background-color: rgba(255, 255, 255, 0.8);
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    transition: background-color 0.3s;
+}
+
+.plot-download-btn:hover {
+    background-color: rgba(255, 255, 255, 1);
+}
+
+.dark-mode .plot-download-btn {
+    background-color: rgba(52, 73, 94, 0.8);
+    color: #ECF0F1;
+}
+
+.dark-mode .plot-download-btn:hover {
+    background-color: rgba(52, 73, 94, 1);
+}
