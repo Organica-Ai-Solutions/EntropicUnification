@@ -1,3 +1,6 @@
+# EntropicUnification Configuration
+# Enhanced version with support for edge modes, non-conformal matter, and higher-order curvature
+
 # Physical Constants
 constants:
   planck_length: 1.616255e-35  # meters
@@ -5,6 +8,7 @@ constants:
   speed_of_light: 299792458    # meters per second
   gravitational_constant: 6.67430e-11  # m^3 kg^-1 s^-2
   reduced_planck_constant: 1.054571817e-34  # J⋅s
+  hbar_factor: 0.159154943  # ℏ/(2π) in natural units
 
 # Spacetime Configuration
 spacetime:
@@ -12,6 +16,8 @@ spacetime:
   lattice_size: 64
   spatial_resolution: 5.0e-2
   dx: 5.0e-2
+  boundary_condition: "periodic"  # "periodic", "dirichlet", "neumann", "absorbing"
+  signature: [-1, 1, 1, 1]  # Lorentzian signature
 
 # Quantum Configuration
 quantum:
@@ -22,13 +28,64 @@ quantum:
   shots: null
   seed: 1234
 
+# Entropy Configuration
+entropy:
+  uv_cutoff: 1.0e-6
+  include_edge_modes: true
+  conformal_invariance: false
+  regularization_scheme: "lattice"  # "lattice", "dimensional", "entanglement", "holographic"
+  edge_mode_dimension: 2
+  edge_mode_entropy_factor: 0.5
+
+# Coupling Configuration
+coupling:
+  coupling_strength: 1.0
+  stress_form: "jacobson"  # "jacobson", "canonical", "faulkner", "modified"
+  include_edge_modes: true
+  include_higher_curvature: false
+  conformal_invariance: false
+  hbar_factor: 0.159154943  # ℏ/(2π) in natural units
+  higher_curvature:
+    alpha_gb: 0.0  # Gauss-Bonnet coupling
+    lambda_cosmo: 0.0  # Cosmological constant
+
 # Optimization Parameters
 optimization:
+  # Basic parameters
   learning_rate: 1.0e-3
   steps: 1000
   checkpoint_interval: 100
   log_interval: 10
   metric_grad_clip: 10.0
+  
+  # Strategy parameters
+  optimization_strategy: "standard"  # "standard", "adaptive", "annealed", "basin_hopping"
+  partition_strategy: "fixed"  # "fixed", "rotating", "random", "adaptive"
+  loss_formulation: "standard"  # "standard", "relaxed", "adaptive", "annealed"
+  
+  # Learning rate schedule
+  lr_schedule:
+    initial_lr: 1.0e-3
+    final_lr: 1.0e-5
+    decay_rate: 0.95
+  
+  # Convergence criteria
+  convergence_threshold: 1.0e-6
+  patience: 50
+  
+  # Basin hopping parameters
+  basin_hopping:
+    hop_threshold: 50
+    max_hops: 5
+    temperature: 0.1
+  
+  # Annealing schedule
+  annealing:
+    initial_temp: 1.0
+    final_temp: 0.01
+    decay_rate: 0.95
+  
+  # Loss weights
   loss_weights:
     einstein: 1.0
     entropy: 1.0
@@ -40,7 +97,9 @@ geometry:
   dx: 5.0e-2
   curvature_tolerance: 1.0e-6
   metric_regularization: 1.0e-4
-  initial_metric: "minkowski"
+  initial_metric: "minkowski"  # "minkowski", "frw", "schwarzschild"
+  include_higher_curvature: false
+  boundary_condition: "periodic"  # "periodic", "dirichlet", "neumann", "absorbing"
 
 # Output Configuration
 output:
@@ -51,3 +110,37 @@ output:
     - "numpy"
     - "torch"
     - "json"
+  visualize:
+    real_time: true
+    plot_frequency: 10
+    save_plots: true
+    plot_types:
+      - "loss_curves"
+      - "metric_evolution"
+      - "entropy_vs_area"
+      - "curvature_maps"
+
+# Experimental Features
+experimental:
+  # Edge mode parameters
+  edge_modes:
+    enabled: true
+    dimension: 2
+    entropy_factor: 0.5
+  
+  # Non-conformal matter parameters
+  non_conformal:
+    enabled: true
+    correction_factor: 0.1
+  
+  # Higher-order curvature parameters
+  higher_curvature:
+    enabled: false
+    gauss_bonnet_coupling: 0.0
+    weyl_tensor_enabled: false
+  
+  # Holographic parameters
+  holographic:
+    enabled: false
+    ryu_takayanagi: true
+    ads_cft_correspondence: false

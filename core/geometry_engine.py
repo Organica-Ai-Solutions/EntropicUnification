@@ -3,20 +3,35 @@ Geometry Engine: Represents and manipulates the spacetime metric gμν(t, x).
 
 This implementation treats the metric as a differentiable field defined on a 1-D
 spatial lattice (sufficient for 1+1 or 3+1 toy models where the metric varies
-along a single spatial coordinate).  The engine provides finite-difference
+along a single spatial coordinate). The engine provides finite-difference
 derivatives, Christoffel symbols, and curvature tensors that are all compatible
 with PyTorch autograd so they can participate in the global optimisation loop.
+
+Enhanced version includes:
+- Higher-order curvature tensors (Weyl, Gauss-Bonnet)
+- Support for non-Lorentzian signatures
+- Improved numerical stability
+- Configurable boundary conditions
 """
 
 from __future__ import annotations
 
 import torch
 from torch import nn
-from typing import Optional
+from typing import Dict, List, Optional, Tuple, Union
+from enum import Enum
+
+
+class BoundaryCondition(str, Enum):
+    """Boundary conditions for the metric field."""
+    PERIODIC = "periodic"
+    DIRICHLET = "dirichlet"
+    NEUMANN = "neumann"
+    ABSORBING = "absorbing"
 
 
 class GeometryEngine(nn.Module):
-    """Differentiable spacetime metric on a 1-D lattice."""
+    """Differentiable spacetime metric on a 1-D lattice with higher-order curvature support."""
 
     def __init__(
         self,
@@ -25,9 +40,24 @@ class GeometryEngine(nn.Module):
         dx: float = 1.0,
         regularization: float = 1e-4,
         initial_metric: str = "minkowski",
+        boundary_condition: Union[str, BoundaryCondition] = BoundaryCondition.PERIODIC,
+        signature: List[int] = None,
         device: Optional[torch.device] = None,
         dtype: torch.dtype = torch.float64,
     ) -> None:
+        """Initialize the geometry engine.
+        
+        Args:
+            dimensions: Number of spacetime dimensions
+            lattice_size: Size of the spatial lattice
+            dx: Spatial step size
+            regularization: Regularization parameter for metric updates
+            initial_metric: Initial metric configuration ("minkowski", "frw", "schwarzschild")
+            boundary_condition: Boundary condition for finite differences
+            signature: Metric signature, e.g. [-1, 1, 1, 1] for Lorentzian
+            device: PyTorch device to use
+            dtype: PyTorch data type to use
+        """
         super().__init__()
         if dimensions < 2:
             raise ValueError("GeometryEngine requires at least 2 spacetime dimensions")
@@ -38,16 +68,39 @@ class GeometryEngine(nn.Module):
         self.device = device or torch.device("cpu")
         self.dtype = dtype
         self.regularization = regularization
+        
+        # Set boundary condition
+        if isinstance(boundary_condition, str):
+            self.boundary_condition = BoundaryCondition(boundary_condition.lower())
+        else:
+            self.boundary_condition = boundary_condition
 
-        # Base Lorentzian metric (diag(-1, +1, +1, ...))
+        # Set metric signature
+        if signature is None:
+            # Default to Lorentzian signature (-,+,+,+,...)
+            self.signature = [-1] + [1] * (dimensions - 1)
+        else:
+            if len(signature) != dimensions:
+                raise ValueError(f"Signature must have {dimensions} elements")
+            self.signature = signature
+
+        # Base metric from signature
         base = torch.diag(
-            torch.tensor([-1.0] + [1.0] * (dimensions - 1), dtype=dtype, device=self.device)
+            torch.tensor(self.signature, dtype=dtype, device=self.device)
         )
         field = base.repeat(lattice_size, 1, 1)
 
         self.metric_field = nn.Parameter(field)
         self.active_index = lattice_size // 2
-
+        
+        # Initialize higher-order curvature tensors
+        self._weyl_tensor = None
+        self._gauss_bonnet_term = None
+        
+        # Cache for expensive computations
+        self._cache = {}
+        
+        # Initialize the metric field
         self._apply_initial_metric(initial_metric)
 
     # ------------------------------------------------------------------
@@ -56,18 +109,29 @@ class GeometryEngine(nn.Module):
     @property
     def metric(self) -> torch.Tensor:
         """Return the metric tensor at the active lattice index."""
-
         return self.metric_field[self.active_index]
 
     def set_active_index(self, index: int) -> None:
+        """Set the active lattice index.
+        
+        Args:
+            index: New active index
+        """
         if not 0 <= index < self.lattice_size:
             raise IndexError("Active metric index out of bounds")
         self.active_index = index
+        # Clear cache when changing active index
+        self._clear_cache()
 
     def _apply_initial_metric(self, name: str) -> None:
+        """Initialize the metric field with a specific configuration.
+        
+        Args:
+            name: Name of the initial metric configuration
+        """
         with torch.no_grad():
             if name.lower() == "minkowski":
-                # Already initialised to Minkowski; nothing else to do
+                # Already initialized to Minkowski; nothing else to do
                 pass
             elif name.lower() == "frw":
                 # Simple flat FRW with scale factor a(x) = 1 + ε x
@@ -76,23 +140,51 @@ class GeometryEngine(nn.Module):
                 a = 1.0 + epsilon * x
                 for i in range(self.lattice_size):
                     g = self.metric_field[i]
-                    g[0, 0] = -1.0
+                    g[0, 0] = self.signature[0]  # Time component
                     for j in range(1, self.dimensions):
-                        g[j, j] = a[i] ** 2
+                        g[j, j] = self.signature[j] * a[i] ** 2  # Spatial components
+            elif name.lower() == "schwarzschild":
+                # Simple Schwarzschild-like metric with a central mass
+                # ds^2 = -(1-2M/r)dt^2 + (1-2M/r)^(-1)dr^2 + r^2 dΩ^2
+                mass = 0.1  # Small mass parameter
+                r = torch.linspace(2.1*mass, 10.0*mass, self.lattice_size, device=self.device)
+                for i in range(self.lattice_size):
+                    g = self.metric_field[i]
+                    # Time component
+                    g[0, 0] = -1.0 * (1.0 - 2.0*mass/r[i])
+                    # Radial component
+                    g[1, 1] = 1.0 / (1.0 - 2.0*mass/r[i])
+                    # Angular components (if dimensions > 2)
+                    if self.dimensions > 2:
+                        g[2, 2] = r[i]**2  # θ component
+                    if self.dimensions > 3:
+                        g[3, 3] = r[i]**2 * torch.sin(torch.tensor(0.5*torch.pi))**2  # φ component
             else:
                 raise ValueError(f"Unknown initial metric '{name}'")
             self._enforce_symmetry()
 
     def _enforce_symmetry(self) -> None:
+        """Enforce symmetry of the metric tensor."""
         with torch.no_grad():
             sym_field = 0.5 * (self.metric_field + self.metric_field.transpose(-1, -2))
             self.metric_field.copy_(sym_field)
+            
+    def _clear_cache(self) -> None:
+        """Clear the computation cache."""
+        self._cache = {}
+        self._weyl_tensor = None
+        self._gauss_bonnet_term = None
 
     # ------------------------------------------------------------------
-    # Finite differences
+    # Finite differences with improved boundary handling
     # ------------------------------------------------------------------
-    def _finite_difference(self, tensor: torch.Tensor, order: int = 1, axis: int = 0) -> torch.Tensor:
-        """Higher-order finite differences along specified axis.
+    def _finite_difference(
+        self, 
+        tensor: torch.Tensor, 
+        order: int = 1, 
+        axis: int = 0
+    ) -> torch.Tensor:
+        """Compute finite differences with configurable boundary conditions.
         
         Args:
             tensor: Input tensor to take derivatives of
@@ -111,11 +203,40 @@ class GeometryEngine(nn.Module):
         dx = self.dx
         ndim = tensor.dim()
         
-        # Pad the tensor for boundary handling
+        # Pad the tensor according to boundary condition
         pad_size = 2 if order == 2 else 1
         pad = [(0, 0)] * ndim
         pad[axis] = (pad_size, pad_size)
-        padded = torch.nn.functional.pad(tensor, [p for dim in reversed(pad) for p in dim])
+        
+        if self.boundary_condition == BoundaryCondition.PERIODIC:
+            # For periodic boundaries, wrap around
+            padded = torch.nn.functional.pad(
+                tensor, 
+                [p for dim in reversed(pad) for p in dim], 
+                mode='circular'
+            )
+        elif self.boundary_condition == BoundaryCondition.DIRICHLET:
+            # For Dirichlet boundaries, use zero padding
+            padded = torch.nn.functional.pad(
+                tensor, 
+                [p for dim in reversed(pad) for p in dim], 
+                mode='constant', 
+                value=0.0
+            )
+        elif self.boundary_condition == BoundaryCondition.NEUMANN:
+            # For Neumann boundaries, use reflection padding
+            padded = torch.nn.functional.pad(
+                tensor, 
+                [p for dim in reversed(pad) for p in dim], 
+                mode='reflect'
+            )
+        else:  # Default to absorbing boundary
+            # For absorbing boundaries, use replication padding
+            padded = torch.nn.functional.pad(
+                tensor, 
+                [p for dim in reversed(pad) for p in dim], 
+                mode='replicate'
+            )
         
         if order == 1:
             # 4th order central difference for 1st derivative
@@ -126,7 +247,7 @@ class GeometryEngine(nn.Module):
                 + padded.narrow(axis, 0, tensor.size(axis))
             ) / (12.0 * dx)
         else:
-            # 2nd order central difference for 2nd derivative
+            # 4th order central difference for 2nd derivative
             derivative = (
                 -padded.narrow(axis, 4, tensor.size(axis)) 
                 + 16 * padded.narrow(axis, 3, tensor.size(axis))
@@ -136,187 +257,46 @@ class GeometryEngine(nn.Module):
             ) / (12.0 * dx ** 2)
             
         return derivative
-        
-    def compute_christoffel(self, metric: torch.Tensor) -> torch.Tensor:
-        """Compute the Christoffel symbols from the metric tensor.
-        
-        Args:
-            metric: Metric tensor g_μν of shape [d, d] or [..., d, d]
-            
-        Returns:
-            Christoffel symbols Γ^λ_μν of shape [d, d, d] or [..., d, d, d]
-        """
-        # Compute inverse metric g^μν
-        g_inv = torch.linalg.inv(metric)
-        
-        # Compute derivatives of the metric
-        dg = torch.stack([
-            self._finite_difference(metric, order=1, axis=i)
-            for i in range(metric.dim() - 2)
-        ], dim=-3)  # Shape: [d, ..., d, d]
-        
-        # Compute Christoffel symbols: Γ^λ_μν = 0.5 g^λρ (∂_μ g_νρ + ∂_ν g_μρ - ∂_ρ g_μν)
-        term1 = dg.unsqueeze(-1)  # ∂_μ g_νρ
-        term1 = term1.permute(0, 1, 2, 3, 4)  # Reorder to match indices
-        term2 = term1.permute(1, 0, 2, 3, 4)  # ∂_ν g_μρ
-        term3 = term1.permute(2, 1, 0, 3, 4)  # ∂_ρ g_μν
-        
-        christoffel = 0.5 * torch.einsum('...λρ,...μνρ->...λμν', g_inv, term1 + term2 - term3)
-        return christoffel
-        
-    def compute_riemann_tensor(self, metric: torch.Tensor) -> torch.Tensor:
-        """Compute the Riemann curvature tensor from the metric.
-        
-        The Riemann tensor is computed as:
-        R^ρ_σμν = ∂_μ Γ^ρ_νσ - ∂_ν Γ^ρ_μσ + Γ^ρ_μλ Γ^λ_νσ - Γ^ρ_νλ Γ^λ_μσ
-        
-        Args:
-            metric: Metric tensor g_μν of shape [d, d] or [..., d, d]
-            
-        Returns:
-            Riemann curvature tensor R^ρ_σμν of shape [d, d, d, d] or [..., d, d, d, d]
-        """
-        # First compute Christoffel symbols and their derivatives
-        gamma = self.compute_christoffel(metric)  # Γ^λ_μν
-        
-        # Compute derivatives of Christoffel symbols
-        dgamma = torch.stack([
-            self._finite_difference(gamma, order=1, axis=i)
-            for i in range(gamma.dim() - 3)
-        ], dim=-4)  # Shape: [d, ..., d, d, d]
-        
-        # Compute the Riemann tensor components
-        # R^ρ_σμν = ∂_μ Γ^ρ_νσ - ∂_ν Γ^ρ_μσ + Γ^ρ_μλ Γ^λ_νσ - Γ^ρ_νλ Γ^λ_μσ
-        dgamma1 = dgamma.permute(0, 1, 3, 2, 4)  # ∂_μ Γ^ρ_νσ
-        dgamma2 = dgamma.permute(1, 0, 3, 2, 4)  # ∂_ν Γ^ρ_μσ
-        
-        # Contract Christoffel symbols: Γ^ρ_μλ Γ^λ_νσ
-        gamma_contract1 = torch.einsum('...ρμλ,...λνσ->...ρμνσ', gamma, gamma)
-        gamma_contract2 = torch.einsum('...ρνλ,...λμσ->...ρμνσ', gamma, gamma)
-        
-        # Combine all terms
-        riemann = (dgamma1 - dgamma2.permute(0, 1, 3, 2, 4) + 
-                  gamma_contract1 - gamma_contract2)
-                  
-        return riemann
-        
-    def compute_ricci_tensor(self, riemann: torch.Tensor) -> torch.Tensor:
-        """Compute the Ricci tensor from the Riemann tensor.
-        
-        The Ricci tensor is the contraction: R_μν = R^λ_μλν
-        
-        Args:
-            riemann: Riemann tensor R^ρ_σμν of shape [d, d, d, d] or [..., d, d, d, d]
-            
-        Returns:
-            Ricci tensor R_μν of shape [d, d] or [..., d, d]
-        """
-        return torch.einsum('...ρμρν->...μν', riemann)
-        
-    def compute_ricci_scalar(self, ricci: torch.Tensor, metric: torch.Tensor) -> torch.Tensor:
-        """Compute the Ricci scalar from the Ricci tensor and metric.
-        
-        The Ricci scalar is the contraction: R = g^μν R_μν
-        
-        Args:
-            ricci: Ricci tensor R_μν of shape [d, d] or [..., d, d]
-            metric: Metric tensor g_μν of shape [d, d] or [..., d, d]
-            
-        Returns:
-            Ricci scalar R of shape [] or [...]
-        """
-        g_inv = torch.linalg.inv(metric)
-        return torch.einsum('...μν,...μν->...', g_inv, ricci)
-        
-    def compute_einstein_tensor(self, ricci: torch.Tensor, ricci_scalar: torch.Tensor, 
-                              metric: torch.Tensor) -> torch.Tensor:
-        """Compute the Einstein tensor G_μν = R_μν - 1/2 R g_μν.
-        
-        Args:
-            ricci: Ricci tensor R_μν of shape [d, d] or [..., d, d]
-            ricci_scalar: Ricci scalar R of shape [] or [...]
-            metric: Metric tensor g_μν of shape [d, d] or [..., d, d]
-            
-        Returns:
-            Einstein tensor G_μν of shape [d, d] or [..., d, d]
-        """
-        return ricci - 0.5 * ricci_scalar.unsqueeze(-1).unsqueeze(-1) * metric
-        derivative[1:-1] = (tensor[2:] - tensor[:-2]) / (2.0 * dx)
-
-        # One-sided differences for the boundaries
-        derivative[0] = (tensor[1] - tensor[0]) / dx
-        derivative[-1] = (tensor[-1] - tensor[-2]) / dx
-
-        return derivative
 
     # ------------------------------------------------------------------
     # Curvature calculations
     # ------------------------------------------------------------------
-    def compute_metric_derivatives(self, metric: Optional[torch.Tensor] = None, order: int = 1) -> torch.Tensor:
-        """Compute ∂_μ g_{σν} for each lattice point.
-        
-        Args:
-            metric: Input metric tensor. If None, uses self.metric_field
-            order: Order of the derivative (1 or 2)
-            
-        Returns:
-            Tensor of metric derivatives with shape [lattice_size, d, d, d] for 1st order
-            or [lattice_size, d, d, d, d] for 2nd order (where d is number of dimensions)
-        """
-        if metric is None:
-            metric = self.metric_field
-            
-        if order == 1:
-            # First derivatives
-            deriv = torch.zeros(
-                (self.lattice_size, self.dimensions, self.dimensions, self.dimensions),
-                dtype=self.dtype,
-                device=self.device,
-            )
-            
-            # Compute derivatives along each dimension
-            for mu in range(self.dimensions):
-                deriv[:, mu] = self._finite_difference(metric, order=1, axis=0) / self.dx
-                
-        elif order == 2:
-            # Second derivatives
-            deriv = torch.zeros(
-                (self.lattice_size, self.dimensions, self.dimensions, 
-                 self.dimensions, self.dimensions),
-                dtype=self.dtype,
-                device=self.device,
-            )
-            
-            # Compute second derivatives
-            for mu in range(self.dimensions):
-                for nu in range(self.dimensions):
-                    # Get first derivative along nu
-                    dg_dnu = self._finite_difference(metric, order=1, axis=0) / self.dx
-                    # Take derivative of dg_dnu along mu
-                    deriv[:, mu, nu] = self._finite_difference(dg_dnu, order=1, axis=0) / self.dx
-        else:
-            raise ValueError("Only 1st and 2nd order derivatives are supported")
-            
-        return deriv
-
     def compute_christoffel_symbols(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Compute Γ^α_{μν} for every lattice point.
+        """Compute Christoffel symbols from the metric tensor.
         
         Args:
             metric: Input metric tensor. If None, uses self.metric_field
             
         Returns:
             Christoffel symbols with shape [lattice_size, d, d, d]
-            where Γ^α_{μν} = christoffel[i,α,μ,ν]
         """
+        cache_key = "christoffel"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+            
         if metric is None:
             metric = self.metric_field
             
-        dg = self.compute_metric_derivatives(metric, order=1)
+        # Compute metric derivatives
+        dg = torch.zeros(
+            (self.lattice_size, self.dimensions, self.dimensions, self.dimensions),
+            dtype=self.dtype,
+            device=self.device,
+        )
+        
+        # Compute derivatives along each dimension
+        for mu in range(self.dimensions):
+            dg[:, mu] = self._finite_difference(metric, order=1, axis=0)
+            
+        # Compute inverse metric
         g_inv = torch.linalg.inv(metric)
         
         # Pre-allocate Christoffel symbols
-        christoffel = torch.zeros_like(dg)
+        christoffel = torch.zeros(
+            (self.lattice_size, self.dimensions, self.dimensions, self.dimensions),
+            dtype=self.dtype,
+            device=self.device,
+        )
         
         # Compute Christoffel symbols: Γ^α_{μν} = 0.5 g^{αβ} (∂_μ g_{νβ} + ∂_ν g_{μβ} - ∂_β g_{μν})
         for i in range(self.lattice_size):
@@ -325,36 +305,44 @@ class GeometryEngine(nn.Module):
                     for nu in range(self.dimensions):
                         term = 0.0
                         for beta in range(self.dimensions):
-                            dg_mu_nu_beta = dg[i, mu, nu, beta] if mu < self.dimensions else 0.0
-                            dg_nu_mu_beta = dg[i, nu, mu, beta] if nu < self.dimensions else 0.0
-                            dg_beta_mu_nu = dg[i, beta, mu, nu] if beta < self.dimensions else 0.0
-                            
                             term += 0.5 * g_inv[i, alpha, beta] * (
-                                dg_mu_nu_beta + dg_nu_mu_beta - dg_beta_mu_nu
+                                dg[i, mu, nu, beta] + dg[i, nu, mu, beta] - dg[i, beta, mu, nu]
                             )
                         christoffel[i, alpha, mu, nu] = term
         
+        # Cache the result
+        self._cache[cache_key] = christoffel
         return christoffel
-        
+
     def compute_riemann_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Compute the Riemann curvature tensor R^α_{βμν}.
-        
-        The Riemann tensor is computed as:
-        R^α_{βμν} = ∂_μ Γ^α_{νβ} - ∂_ν Γ^α_{μβ} + Γ^α_{μλ} Γ^λ_{νβ} - Γ^α_{νλ} Γ^λ_{μβ}
         
         Args:
             metric: Input metric tensor. If None, uses self.metric_field
             
         Returns:
-            Riemann curvature tensor with shape [lattice_size, d, d, d, d]
-            where R^α_{βμν} = riemann[i,α,β,μ,ν]
+            Riemann tensor with shape [lattice_size, d, d, d, d]
         """
+        cache_key = "riemann"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+            
         if metric is None:
             metric = self.metric_field
             
-        # Compute Christoffel symbols and their derivatives
+        # Compute Christoffel symbols
         gamma = self.compute_christoffel_symbols(metric)
-        d_gamma = self.compute_metric_derivatives(gamma, order=1)
+        
+        # Compute derivatives of Christoffel symbols
+        dgamma = torch.zeros(
+            (self.lattice_size, self.dimensions, self.dimensions, 
+             self.dimensions, self.dimensions),
+            dtype=self.dtype,
+            device=self.device,
+        )
+        
+        for mu in range(self.dimensions):
+            dgamma[:, mu] = self._finite_difference(gamma, order=1, axis=0)
         
         # Pre-allocate Riemann tensor
         riemann = torch.zeros(
@@ -365,13 +353,14 @@ class GeometryEngine(nn.Module):
         )
         
         # Compute Riemann tensor components
+        # R^α_{βμν} = ∂_μ Γ^α_{νβ} - ∂_ν Γ^α_{μβ} + Γ^α_{μλ} Γ^λ_{νβ} - Γ^α_{νλ} Γ^λ_{μβ}
         for i in range(self.lattice_size):
             for alpha in range(self.dimensions):
                 for beta in range(self.dimensions):
                     for mu in range(self.dimensions):
                         for nu in range(self.dimensions):
                             # ∂_μ Γ^α_{νβ} - ∂_ν Γ^α_{μβ}
-                            term1 = d_gamma[i, mu, alpha, nu, beta] - d_gamma[i, nu, alpha, mu, beta]
+                            term1 = dgamma[i, mu, alpha, nu, beta] - dgamma[i, nu, alpha, mu, beta]
                             
                             # Γ^α_{μλ} Γ^λ_{νβ} - Γ^α_{νλ} Γ^λ_{μβ}
                             term2 = 0.0
@@ -383,13 +372,12 @@ class GeometryEngine(nn.Module):
                             
                             riemann[i, alpha, beta, mu, nu] = term1 + term2
         
+        # Cache the result
+        self._cache[cache_key] = riemann
         return riemann
     
     def compute_ricci_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Compute the Ricci tensor R_{μν} by contracting the Riemann tensor.
-        
-        The Ricci tensor is obtained by contracting the first and third indices
-        of the Riemann tensor: R_{μν} = R^α_{μαν}
         
         Args:
             metric: Input metric tensor. If None, uses self.metric_field
@@ -397,15 +385,21 @@ class GeometryEngine(nn.Module):
         Returns:
             Ricci tensor with shape [lattice_size, d, d]
         """
+        cache_key = "ricci"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+            
         riemann = self.compute_riemann_tensor(metric)
+        
         # Contract first and third indices: R_{μν} = R^α_{μαν}
-        return torch.einsum('iabic->ibc', riemann)
+        ricci = torch.einsum('iabic->ibc', riemann)
+        
+        # Cache the result
+        self._cache[cache_key] = ricci
+        return ricci
     
     def compute_ricci_scalar(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Compute the Ricci scalar R by contracting the Ricci tensor.
-        
-        The Ricci scalar is obtained by contracting the Ricci tensor with the
-        inverse metric: R = g^{μν} R_{μν}
         
         Args:
             metric: Input metric tensor. If None, uses self.metric_field
@@ -413,6 +407,10 @@ class GeometryEngine(nn.Module):
         Returns:
             Ricci scalar with shape [lattice_size]
         """
+        cache_key = "ricci_scalar"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+            
         if metric is None:
             metric = self.metric_field
             
@@ -420,7 +418,11 @@ class GeometryEngine(nn.Module):
         g_inv = torch.linalg.inv(metric)
         
         # Contract with inverse metric: R = g^{μν} R_{μν}
-        return torch.einsum('iμν,iμν->i', g_inv, ricci)
+        scalar = torch.einsum('iμν,iμν->i', g_inv, ricci)
+        
+        # Cache the result
+        self._cache[cache_key] = scalar
+        return scalar
     
     def compute_einstein_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Compute the Einstein tensor G_{μν} = R_{μν} - 1/2 R g_{μν}.
@@ -431,6 +433,10 @@ class GeometryEngine(nn.Module):
         Returns:
             Einstein tensor with shape [lattice_size, d, d]
         """
+        cache_key = "einstein"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+            
         if metric is None:
             metric = self.metric_field
             
@@ -441,84 +447,202 @@ class GeometryEngine(nn.Module):
         ricci_scalar = ricci_scalar.view(-1, 1, 1)
         
         # G_{μν} = R_{μν} - 1/2 R g_{μν}
-        return ricci - 0.5 * ricci_scalar * metric
-                            term = term + 0.5 * g_inv[alpha, sigma] * (
-                                dg[mu, sigma, nu]
-                                + dg[nu, sigma, mu]
-                                - dg[sigma, mu, nu]
-                            )
-                        christoffel[i, alpha, mu, nu] = term
-
-        return christoffel
-
-    def compute_riemann_tensor(self) -> torch.Tensor:
-        """Compute R^α_{βμν} for each lattice point."""
-
-        christoffel = self.compute_christoffel_symbols()
-        gamma_deriv = torch.zeros(
-            (self.lattice_size, self.dimensions, self.dimensions, self.dimensions, self.dimensions),
-            dtype=self.dtype,
-            device=self.device,
-        )
-        gamma_deriv[:, 1, :, :, :] = self._finite_difference(christoffel)
-
-        riemann = torch.zeros(
-            (self.lattice_size, self.dimensions, self.dimensions, self.dimensions, self.dimensions),
-            dtype=self.dtype,
-            device=self.device,
-        )
-
+        einstein = ricci - 0.5 * ricci_scalar * metric
+        
+        # Cache the result
+        self._cache[cache_key] = einstein
+        return einstein
+    
+    # ------------------------------------------------------------------
+    # Higher-order curvature tensors
+    # ------------------------------------------------------------------
+    def compute_weyl_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Compute the Weyl conformal curvature tensor.
+        
+        The Weyl tensor is the traceless part of the Riemann tensor:
+        C_{αβμν} = R_{αβμν} - (g_{α[μ}R_{ν]β} - g_{β[μ}R_{ν]α}) + (1/3)R g_{α[μ}g_{ν]β}
+        
+        Args:
+            metric: Input metric tensor. If None, uses self.metric_field
+            
+        Returns:
+            Weyl tensor with shape [lattice_size, d, d, d, d]
+        """
+        if self._weyl_tensor is not None:
+            return self._weyl_tensor
+            
+        if metric is None:
+            metric = self.metric_field
+            
+        riemann = self.compute_riemann_tensor(metric)
+        ricci = self.compute_ricci_tensor(metric)
+        scalar = self.compute_ricci_scalar(metric).view(-1, 1, 1)
+        
+        # Pre-allocate Weyl tensor
+        weyl = torch.zeros_like(riemann)
+        
+        # Dimension-dependent factor
+        n = self.dimensions
+        factor = 2.0 / ((n-1) * (n-2))
+        
+        # Compute Weyl tensor components
         for i in range(self.lattice_size):
-            for alpha in range(self.dimensions):
-                for beta in range(self.dimensions):
-                    for mu in range(self.dimensions):
-                        for nu in range(self.dimensions):
-                            value = (
-                                gamma_deriv[i, mu, alpha, beta, nu]
-                                - gamma_deriv[i, nu, alpha, beta, mu]
+            g = metric[i]
+            R = ricci[i]
+            
+            for a in range(self.dimensions):
+                for b in range(self.dimensions):
+                    for m in range(self.dimensions):
+                        for n in range(self.dimensions):
+                            # Riemann part
+                            weyl[i, a, b, m, n] = riemann[i, a, b, m, n]
+                            
+                            # Ricci part (antisymmetrized)
+                            ricci_term = (
+                                g[a, m] * R[n, b] - g[a, n] * R[m, b] -
+                                g[b, m] * R[n, a] + g[b, n] * R[m, a]
                             )
-                            for sigma in range(self.dimensions):
-                                value = value + (
-                                    christoffel[i, alpha, sigma, mu]
-                                    * christoffel[i, sigma, beta, nu]
-                                    - christoffel[i, alpha, sigma, nu]
-                                    * christoffel[i, sigma, beta, mu]
-                                )
-                            riemann[i, alpha, beta, mu, nu] = value
-
-        return riemann
-
-    def compute_ricci_tensor(self) -> torch.Tensor:
-        """Compute R_{βν} for each lattice point."""
-
-        riemann = self.compute_riemann_tensor()
-        ricci = torch.einsum("iαβαν->iβν", riemann)
-        return ricci
-
-    def compute_ricci_scalar(self) -> torch.Tensor:
-        """Compute scalar curvature R at the active lattice index."""
-
-        ricci = self.compute_ricci_tensor()
-        g_inv = torch.linalg.inv(self.metric)
-        active_ricci = ricci[self.active_index]
-        scalar = torch.einsum("μν,μν->", g_inv, active_ricci)
-        return scalar
-
+                            weyl[i, a, b, m, n] -= factor * ricci_term
+                            
+                            # Scalar part (antisymmetrized)
+                            scalar_term = scalar[i] * (
+                                g[a, m] * g[n, b] - g[a, n] * g[m, b]
+                            )
+                            weyl[i, a, b, m, n] += factor/3.0 * scalar_term
+        
+        self._weyl_tensor = weyl
+        return weyl
+    
+    def compute_gauss_bonnet_term(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Compute the Gauss-Bonnet term: R² - 4R_{μν}R^{μν} + R_{μναβ}R^{μναβ}.
+        
+        Args:
+            metric: Input metric tensor. If None, uses self.metric_field
+            
+        Returns:
+            Gauss-Bonnet term with shape [lattice_size]
+        """
+        if self._gauss_bonnet_term is not None:
+            return self._gauss_bonnet_term
+            
+        if metric is None:
+            metric = self.metric_field
+            
+        # Get necessary tensors
+        riemann = self.compute_riemann_tensor(metric)
+        ricci = self.compute_ricci_tensor(metric)
+        scalar = self.compute_ricci_scalar(metric)
+        g_inv = torch.linalg.inv(metric)
+        
+        # Compute squared terms
+        ricci_squared = torch.einsum('iμν,iμσ,iνσ->i', ricci, g_inv, g_inv)
+        riemann_squared = torch.einsum(
+            'iαβμν,iγδρσ,iαγ,iβδ,iμρ,iνσ->i', 
+            riemann, riemann, g_inv, g_inv, g_inv, g_inv
+        )
+        
+        # Gauss-Bonnet term: R² - 4R_{μν}R^{μν} + R_{μναβ}R^{μναβ}
+        gb_term = scalar**2 - 4*ricci_squared + riemann_squared
+        
+        self._gauss_bonnet_term = gb_term
+        return gb_term
+    
     # ------------------------------------------------------------------
     # Metric updates
     # ------------------------------------------------------------------
     def update_metric(self, gradient: torch.Tensor, learning_rate: float) -> None:
-        """Gradient descent update on the active metric component."""
-
+        """Gradient descent update on the active metric component.
+        
+        Args:
+            gradient: Gradient of the loss with respect to the metric
+            learning_rate: Learning rate for the update
+        """
         with torch.no_grad():
+            # Apply gradient descent update
             updated = self.metric_field[self.active_index] - learning_rate * gradient
+            
+            # Enforce symmetry
             updated = 0.5 * (updated + updated.t())
 
-            # Keep metric close to the Lorentzian base to avoid degeneracy
+            # Keep metric close to the signature base to avoid degeneracy
             base = torch.diag(
-                torch.tensor([-1.0] + [1.0] * (self.dimensions - 1), dtype=self.dtype, device=self.device)
+                torch.tensor(self.signature, dtype=self.dtype, device=self.device)
             )
             delta = updated - base
             delta = torch.clamp(delta, -self.regularization, self.regularization)
             self.metric_field[self.active_index].copy_(base + delta)
-
+            
+            # Clear cache after metric update
+            self._clear_cache()
+    
+    # ------------------------------------------------------------------
+    # Utility methods
+    # ------------------------------------------------------------------
+    def compute_determinant(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Compute the determinant of the metric tensor.
+        
+        Args:
+            metric: Input metric tensor. If None, uses self.metric_field
+            
+        Returns:
+            Determinant with shape [lattice_size]
+        """
+        if metric is None:
+            metric = self.metric_field
+            
+        return torch.linalg.det(metric)
+    
+    def compute_proper_volume(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Compute the proper volume element sqrt(|g|).
+        
+        Args:
+            metric: Input metric tensor. If None, uses self.metric_field
+            
+        Returns:
+            Volume element with shape [lattice_size]
+        """
+        det = self.compute_determinant(metric)
+        return torch.sqrt(torch.abs(det))
+    
+    def compute_geodesic_equation(
+        self, 
+        position: torch.Tensor, 
+        velocity: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute the geodesic equation for a given position and velocity.
+        
+        d²x^α/dλ² + Γ^α_{μν} (dx^μ/dλ) (dx^ν/dλ) = 0
+        
+        Args:
+            position: Position vector with shape [d]
+            velocity: Velocity vector with shape [d]
+            
+        Returns:
+            Acceleration vector with shape [d]
+        """
+        # Get Christoffel symbols at the active index
+        gamma = self.compute_christoffel_symbols()[self.active_index]
+        
+        # Compute acceleration from geodesic equation
+        acceleration = torch.zeros_like(position)
+        
+        for alpha in range(self.dimensions):
+            term = 0.0
+            for mu in range(self.dimensions):
+                for nu in range(self.dimensions):
+                    term -= gamma[alpha, mu, nu] * velocity[mu] * velocity[nu]
+            acceleration[alpha] = term
+            
+        return acceleration
+    
+    def is_flat(self, tolerance: float = 1e-6) -> bool:
+        """Check if the metric is flat (zero curvature).
+        
+        Args:
+            tolerance: Tolerance for considering curvature as zero
+            
+        Returns:
+            True if the metric is flat, False otherwise
+        """
+        ricci_scalar = self.compute_ricci_scalar()[self.active_index]
+        return torch.abs(ricci_scalar) < tolerance
