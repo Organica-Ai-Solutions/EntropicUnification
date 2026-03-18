@@ -19,3 +19,14 @@ results/
 
 # OS
 .DS_Store
+
+# Paper aux files
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/*.bbl
+paper/*.blg
+paper/*.synctex.gz
+
+# Experiment outputs (large, reproducible)
+schwarzschild_results/

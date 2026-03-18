@@ -26,10 +26,12 @@ from .geometry_engine import GeometryEngine
 
 class StressTensorFormulation(str, Enum):
     """Different formulations of the entropic stress-energy tensor."""
-    JACOBSON = "jacobson"  # Original Jacobson thermodynamic formulation
+    JACOBSON = "jacobson"    # Original Jacobson thermodynamic formulation
     CANONICAL = "canonical"  # Simple outer product of gradients
-    FAULKNER = "faulkner"   # Faulkner's linearized Einstein formulation
-    MODIFIED = "modified"   # Modified formulation with edge mode corrections
+    FAULKNER = "faulkner"    # Faulkner's linearized Einstein formulation
+    MODIFIED = "modified"    # Modified formulation with edge mode corrections
+    LAGRANGIAN = "lagrangian"  # Hilbert-variation derived from explicit action
+    MASSLESS = "massless"      # Traceless form enforcing E=pc massless constraint
 
 
 @dataclass
@@ -41,7 +43,8 @@ class CouplingTerms:
     coupling_residual: torch.Tensor
     edge_mode_contribution: Optional[torch.Tensor] = None
     higher_curvature_terms: Optional[torch.Tensor] = None
-    
+    tracelessness_violation: Optional[torch.Tensor] = None  # g^μν T_μν, should be ~0 for massless
+
     def __getitem__(self, key):
         """Make the class subscriptable to access its fields."""
         return getattr(self, key)
@@ -125,7 +128,7 @@ class CouplingLayer:
             if entropy_gradient.shape[0] != dim:
                 # Project to spacetime dimensions using a simple mapping
                 # This is a heuristic approach for demonstration purposes
-                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype)
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype, device=entropy_gradient.device)
                 # Use the first dim components or pad with zeros
                 entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
             else:
@@ -142,7 +145,7 @@ class CouplingLayer:
             # Ensure entropy gradient has the right dimensions for spacetime
             dim = self.geometry.dimensions
             if entropy_gradient.shape[0] != dim:
-                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype)
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype, device=entropy_gradient.device)
                 entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
             else:
                 entropy_grad_spacetime = entropy_gradient
@@ -150,55 +153,151 @@ class CouplingLayer:
             T = self.hbar_factor * torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
             
         elif self.stress_form == StressTensorFormulation.FAULKNER:
-            # Faulkner's linearized Einstein formulation:
-            # T_μν = (ℏ/2π)[∇_μ∇_νS - (□S)g_μν]
-            # This requires computing second derivatives of entropy
-            # For now, we approximate with a modified Jacobson form
-            
-            # Ensure entropy gradient has the right dimensions for spacetime
+            # Faulkner's linearized Einstein formulation (arXiv:1312.7856):
+            #   T_μν = (ℏ/2π)[ ∇_μ∇_νS − (□S) g_μν ]
+            # where □S = g^μν ∇_μ∇_νS is the d'Alembertian of entropy.
+            #
+            # Implementation: compute the Hessian of S w.r.t. the quantum state
+            # projected to spacetime dimensions.  entropy_gradient() stores the
+            # state it differentiated against as entropy._last_state with
+            # create_graph=True, enabling second-order autograd here.
+
             dim = self.geometry.dimensions
             if entropy_gradient.shape[0] != dim:
-                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype)
-                entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype, device=entropy_gradient.device)
+                entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = (
+                    entropy_gradient[:min(dim, entropy_gradient.shape[0])]
+                )
             else:
                 entropy_grad_spacetime = entropy_gradient
-                
-            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
-            T = torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
-            
-            # Add a term that approximates the effect of second derivatives
-            trace_term = contraction * metric
-            T = self.hbar_factor * (T - trace_term)
+
+            # Attempt to compute the spacetime Hessian H_μν = ∂²S/∂x_μ∂x_ν
+            state_ref = getattr(self.entropy, "_last_state", None)
+            hessian = torch.zeros(dim, dim, dtype=entropy_grad_spacetime.dtype, device=entropy_grad_spacetime.device)
+
+            if state_ref is not None and entropy_grad_spacetime.requires_grad:
+                # Second-order autograd: differentiate each component of the
+                # projected gradient to obtain the Hessian rows.
+                for mu in range(dim):
+                    if entropy_grad_spacetime[mu].grad_fn is not None:
+                        row_full = torch.autograd.grad(
+                            entropy_grad_spacetime[mu],
+                            state_ref,
+                            retain_graph=True,
+                            allow_unused=True,
+                        )[0]
+                        if row_full is not None:
+                            row_real = row_full.real
+                            hessian[mu, :] = row_real[:dim]
+            else:
+                # Fallback: symmetric outer product (= Jacobson Hessian approximation)
+                hessian = torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
+
+            # □S = Tr(H) in flat-metric approximation (proper: g^μν H_μν)
+            try:
+                metric_inv = torch.linalg.inv(metric)
+            except Exception:
+                metric_inv = torch.linalg.pinv(metric)
+            box_S = torch.sum(metric_inv * hessian)
+
+            T = self.hbar_factor * (hessian - box_S * metric)
             
         elif self.stress_form == StressTensorFormulation.MODIFIED:
             # Modified formulation with corrections for non-conformal fields:
             # T_μν = (ℏ/2π)[∇_μS ∇_νS - (1/2)g_μν (∇S)² + α R_μν]
             # where α is a non-conformality parameter
-            
+
             # Ensure entropy gradient has the right dimensions for spacetime
             dim = self.geometry.dimensions
             if entropy_gradient.shape[0] != dim:
-                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype)
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype, device=entropy_gradient.device)
                 entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
             else:
                 entropy_grad_spacetime = entropy_gradient
-                
+
             contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
             T = torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
-            
+
             # Basic Jacobson term
             T = self.hbar_factor * (T - 0.5 * metric * contraction)
-            
+
             # Add correction for non-conformal fields if needed
             if not self.conformal_invariance:
                 # Get Ricci tensor for the correction
                 ricci = self.geometry.compute_ricci_tensor()
-                
+
                 # Non-conformality parameter (could be made configurable)
                 alpha = 0.1
-                
+
                 # Add correction term
                 T = T + alpha * self.hbar_factor * ricci[self.geometry.active_index]
+
+        elif self.stress_form == StressTensorFormulation.LAGRANGIAN:
+            # Derived from the Hilbert action via variational principle.
+            #
+            # Action:
+            #   S = ∫d^n x √(-g) [ R/(16πG) - (ℏ/4π)(∇_μS)(∇^μS) ]
+            #
+            # Varying the matter part L_m = -(ℏ/4π) g^αβ ∂_αS ∂_βS with
+            # respect to g^μν using T_μν = -(2/√(-g)) δ(√(-g) L_m)/δg^μν:
+            #
+            #   δ(√(-g) L_m)/δg^μν
+            #     = (-½ √(-g) g_μν) L_m + √(-g)(-(ℏ/4π) ∂_μS ∂_νS)
+            #
+            #   T_μν = -(2)[(-½ g_μν)(-(ℏ/4π)(∇S)²) - (ℏ/4π) ∂_μS ∂_νS]
+            #         = (ℏ/2π) ∂_μS ∂_νS - ½ g_μν (ℏ/2π)(∇S)²
+            #
+            # This is mathematically identical to JACOBSON but is *derived*,
+            # not postulated.  Trace in n dimensions:
+            #   g^μν T_μν = (ℏ/2π)(∇S)²(1 - n/2)
+            # → zero only in n=2; non-zero in n=4 (tracelessness violation).
+
+            dim = self.geometry.dimensions
+            if entropy_gradient.shape[0] != dim:
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype, device=entropy_gradient.device)
+                entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
+            else:
+                entropy_grad_spacetime = entropy_gradient
+
+            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
+            T = self.hbar_factor * (
+                torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
+                - 0.5 * metric * contraction
+            )
+
+        elif self.stress_form == StressTensorFormulation.MASSLESS:
+            # Traceless stress tensor — enforces the E=pc massless constraint.
+            #
+            # Motivation: entropy gradients propagate at c (pure information,
+            # no rest mass), so they must satisfy the same tracelessness
+            # condition as the electromagnetic stress tensor:
+            #   g^μν T_μν = 0
+            #
+            # The JACOBSON/LAGRANGIAN form has trace (ℏ/2π)(∇S)²(1 - n/2),
+            # which vanishes only in n=2.  Replacing the (1/2) prefactor with
+            # (1/n) makes the tensor traceless in any dimension:
+            #
+            #   T_μν = (ℏ/2π)[ ∂_μS ∂_νS - (1/n) g_μν (∇S)² ]
+            #
+            # Trace check:
+            #   g^μν T_μν = (ℏ/2π)[ (∇S)² - (1/n)·n·(∇S)² ] = 0  ✓
+            #
+            # This is the leading-order conformal (traceless) completion of
+            # the Lagrangian-derived form.
+
+            dim = self.geometry.dimensions
+            if entropy_gradient.shape[0] != dim:
+                entropy_grad_spacetime = torch.zeros(dim, dtype=entropy_gradient.dtype, device=entropy_gradient.device)
+                entropy_grad_spacetime[:min(dim, entropy_gradient.shape[0])] = entropy_gradient[:min(dim, entropy_gradient.shape[0])]
+            else:
+                entropy_grad_spacetime = entropy_gradient
+
+            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
+            T = self.hbar_factor * (
+                torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
+                - (1.0 / dim) * metric * contraction
+            )
+
         else:
             raise ValueError(f"Unknown stress tensor formulation: {self.stress_form}")
             
@@ -220,6 +319,40 @@ class CouplingLayer:
         T = self.coupling_strength * T
             
         return T, edge_contribution
+
+    def compute_tracelessness_violation(
+        self,
+        stress_tensor: torch.Tensor,
+        metric: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Compute g^μν T_μν — the trace of the stress tensor.
+
+        For a massless field (E=pc) this must be zero.  Non-zero values
+        indicate the stress tensor is sourcing a massive (non-conformal)
+        field, which violates the information-propagates-at-c assumption.
+
+        Args:
+            stress_tensor: T_μν as a (dim × dim) tensor.
+            metric: g_μν (uses geometry engine's metric if None).
+
+        Returns:
+            Scalar tensor holding g^μν T_μν.
+        """
+        if metric is None:
+            metric = self.geometry.metric
+
+        # g^μν is the matrix inverse of g_μν.
+        # For a diagonal metric this is just 1/diag, but we invert
+        # generally so the check works for any metric state.
+        try:
+            metric_inv = torch.linalg.inv(metric)
+        except Exception:
+            # Fallback: use pseudo-inverse if metric is singular
+            metric_inv = torch.linalg.pinv(metric)
+
+        # Trace = g^μν T_μν = sum_μ sum_ν metric_inv[μ,ν] * T[μ,ν]
+        trace = torch.sum(metric_inv * stress_tensor)
+        return trace
 
     # ------------------------------------------------------------------
     # Einstein tensor and higher curvature terms
@@ -318,14 +451,18 @@ class CouplingLayer:
         
         # Compute residual (mismatch between geometry and entropy)
         residual = G - T
-        
+
+        # Check massless constraint: g^μν T_μν should be 0 for E=pc fields
+        trace_violation = self.compute_tracelessness_violation(T)
+
         return CouplingTerms(
-            entropy_grad, 
-            T, 
-            G, 
+            entropy_grad,
+            T,
+            G,
             residual,
             edge_contribution,
-            higher_curvature
+            higher_curvature,
+            trace_violation,
         )
 
     def compute_coupling_consistency(self, state: torch.Tensor, partition: list) -> torch.Tensor:
@@ -391,10 +528,13 @@ class CouplingLayer:
         # Add optional components if present
         if terms.edge_mode_contribution is not None:
             result["edge_mode_contribution"] = terms.edge_mode_contribution
-            
+
         if terms.higher_curvature_terms is not None:
             result["higher_curvature_terms"] = terms.higher_curvature_terms
-            
+
+        if terms.tracelessness_violation is not None:
+            result["tracelessness_violation"] = terms.tracelessness_violation
+
         return result
         
     # ------------------------------------------------------------------

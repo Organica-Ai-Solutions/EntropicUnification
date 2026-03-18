@@ -49,6 +49,7 @@ try:
         create_enhanced_metric_evolution,
         fig_to_uri
     )
+    from components.geometry_plots import create_geometry_3d_panel  # noqa: E402
 except ImportError:
     # Try relative imports if the above fails
     from dashboards.components.control_panel import create_control_panel
@@ -78,6 +79,7 @@ except ImportError:
         create_enhanced_metric_evolution,
         fig_to_uri
     )
+    from dashboards.components.geometry_plots import create_geometry_3d_panel
 
 # Get the absolute path to the assets folder
 assets_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets')
@@ -149,7 +151,14 @@ app.layout = dbc.Container(
                         label="Advanced Visualizations",
                         tab_id="tab-advanced",
                     ),
-                    
+
+                    # 3D Geometry Tab
+                    dbc.Tab(
+                        create_geometry_3d_panel(),
+                        label="3D Geometry",
+                        tab_id="tab-geometry-3d",
+                    ),
+
                     # Real-Time Monitoring Tab
                     dbc.Tab(
                         create_real_time_monitor_panel(),

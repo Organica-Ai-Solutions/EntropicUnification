@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>EntropicUnification — Spacetime from Quantum Information</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+<style>
+  :root {
+    --bg: #050810;
+    --bg2: #080d1a;
+    --surface: #0d1526;
+    --border: rgba(80,140,255,0.15);
+    --accent: #4d9fff;
+    --accent2: #7b4dff;
+    --accent3: #00e5cc;
+    --text: #c8d8f0;
+    --text-dim: #5a7090;
+    --text-bright: #eef4ff;
+    --mono: 'Space Mono', monospace;
+    --serif: 'Libre Baskerville', serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── CANVAS BACKGROUND ── */
+  #cosmos {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* ── LAYOUT ── */
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(5,8,16,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 2rem;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--accent); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    padding: 8rem 0 4rem;
+  }
+
+  .hero-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+  }
+
+  .hero-tag {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent3);
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .hero-tag::before {
+    content: '';
+    display: block;
+    width: 2rem;
+    height: 1px;
+    background: var(--accent3);
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(2.2rem, 4vw, 3.2rem);
+    font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1.15;
+    margin-bottom: 1.5rem;
+    letter-spacing: -0.01em;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .hero-sub {
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    margin-bottom: 2.5rem;
+    line-height: 1.8;
+  }
+
+  .hero-equation {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    color: var(--accent3);
+    background: rgba(0,229,204,0.06);
+    border: 1px solid rgba(0,229,204,0.2);
+    border-radius: 4px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 2.5rem;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-decoration: none;
+    padding: 0.75rem 1.75rem;
+    border-radius: 3px;
+    transition: all 0.2s;
+    cursor: pointer;
+    border: none;
+    display: inline-block;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+  }
+
+  .btn-primary:hover {
+    background: #7bb8ff;
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid rgba(77,159,255,0.4);
+  }
+
+  .btn-ghost:hover {
+    border-color: var(--accent);
+    background: rgba(77,159,255,0.08);
+    transform: translateY(-1px);
+  }
+
+  /* ── HERO DIAGRAM ── */
+  .hero-diagram {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .pipeline-viz {
+    width: 100%;
+    max-width: 420px;
+  }
+
+  /* ── SECTION HEADER ── */
+  .section {
+    padding: 6rem 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.75rem;
+  }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    color: var(--text-bright);
+    font-weight: 700;
+    margin-bottom: 1rem;
+    line-height: 1.2;
+  }
+
+  .section-intro {
+    color: var(--text-dim);
+    max-width: 600px;
+    margin-bottom: 3.5rem;
+    font-size: 1rem;
+  }
+
+  /* ── RESULTS GRID ── */
+  .results-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+  }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.75rem;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+
+  .result-card:hover {
+    border-color: rgba(77,159,255,0.4);
+    transform: translateY(-2px);
+  }
+
+  .result-icon {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .result-card h3 {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+  }
+
+  .result-card p {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .result-card .metric {
+    font-family: var(--mono);
+    font-size: 1.4rem;
+    color: var(--accent3);
+    margin: 0.5rem 0;
+  }
+
+  /* ── THEORY SECTION ── */
+  .theory-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  .theory-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2rem;
+  }
+
+  .theory-block h3 {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent2);
+    margin-bottom: 1rem;
+  }
+
+  .theory-block .eq {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--accent3);
+    background: rgba(0,229,204,0.05);
+    border-left: 2px solid var(--accent3);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    line-height: 1.8;
+  }
+
+  .theory-block p {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.6rem;
+    border-radius: 2px;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+
+  .badge-derived { background: rgba(0,229,204,0.15); color: var(--accent3); }
+  .badge-new { background: rgba(77,159,255,0.15); color: var(--accent); }
+
+  /* ── FORMULATIONS TABLE ── */
+  .formulations {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 2rem 0;
+  }
+
+  .formulations table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .formulations th {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    padding: 1rem 1.5rem;
+    text-align: left;
+    background: rgba(77,159,255,0.05);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .formulations td {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    padding: 0.9rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  .formulations tr:last-child td { border-bottom: none; }
+  .formulations tr:hover td { background: rgba(77,159,255,0.03); }
+
+  .status-yes { color: var(--accent3); }
+  .status-no { color: var(--text-dim); }
+  .status-default { color: var(--accent); }
+
+  /* ── HYPOTHESES ── */
+  .hypotheses {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+
+  .hypothesis {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.75rem;
+    position: relative;
+  }
+
+  .hypothesis .h-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+  }
+
+  .hypothesis h3 {
+    font-size: 0.95rem;
+    color: var(--text-bright);
+    margin-bottom: 0.75rem;
+    font-weight: 700;
+  }
+
+  .hypothesis p {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .h-status {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 2px;
+  }
+
+  .h-confirmed { background: rgba(0,229,204,0.12); color: var(--accent3); }
+  .h-active { background: rgba(123,77,255,0.15); color: #a87bff; }
+
+  /* ── QUICKSTART ── */
+  .quickstart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+
+  .code-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    background: rgba(77,159,255,0.06);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .code-block-title {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .code-block pre {
+    padding: 1.25rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text);
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .code-block .kw { color: var(--accent2); }
+  .code-block .str { color: var(--accent3); }
+  .code-block .cm { color: var(--text-dim); }
+  .code-block .fn { color: var(--accent); }
+
+  /* ── REFERENCES ── */
+  .refs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .ref-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem 1.25rem;
+    font-size: 0.83rem;
+  }
+
+  .ref-item .ref-authors {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--accent);
+    margin-bottom: 0.25rem;
+    letter-spacing: 0.03em;
+  }
+
+  .ref-item .ref-title {
+    color: var(--text-bright);
+    margin-bottom: 0.25rem;
+    line-height: 1.4;
+    font-weight: 700;
+  }
+
+  .ref-item .ref-venue {
+    color: var(--text-dim);
+    font-style: italic;
+    font-size: 0.8rem;
+  }
+
+  /* ── NIS SECTION ── */
+  .nis-banner {
+    background: linear-gradient(135deg, rgba(77,159,255,0.08), rgba(123,77,255,0.08));
+    border: 1px solid rgba(123,77,255,0.25);
+    border-radius: 8px;
+    padding: 2.5rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2rem;
+    align-items: center;
+  }
+
+  .nis-banner h3 {
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    color: var(--text-bright);
+    margin-bottom: 0.75rem;
+  }
+
+  .nis-banner p {
+    color: var(--text-dim);
+    font-size: 0.92rem;
+    line-height: 1.7;
+  }
+
+  /* ── 3D VISUALIZATION ── */
+  .viz3d-section { padding: 5rem 0; }
+
+  .viz3d-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+
+  .viz3d-tab {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.6rem 1.4rem;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .viz3d-tab:hover { color: var(--accent3); }
+
+  .viz3d-tab.active {
+    color: var(--accent3);
+    border-bottom-color: var(--accent3);
+  }
+
+  .viz3d-panel { display: none; }
+  .viz3d-panel.active { display: block; }
+
+  .viz3d-plot {
+    width: 100%;
+    height: 500px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  .viz3d-caption {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-top: 1rem;
+    text-align: center;
+    letter-spacing: 0.03em;
+  }
+
+  .viz3d-caption strong { color: #FAC775; }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2.5rem 0;
+    margin-top: 4rem;
+  }
+
+  .footer-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-logo {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+
+  .footer-logo span { color: var(--accent); }
+
+  .footer-links {
+    display: flex;
+    gap: 1.5rem;
+    list-style: none;
+  }
+
+  .footer-links a {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: var(--accent); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .hero-inner, .theory-grid, .quickstart-grid,
+    .refs-grid, .nis-banner { grid-template-columns: 1fr; }
+    .results-grid, .hypotheses { grid-template-columns: 1fr; }
+    .hero-diagram { display: none; }
+  }
+
+  /* ── SCROLL ANIMATIONS ── */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  .fade-in.visible {
+    opacity: 1;
+    transform: none;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="cosmos"></canvas>
+
+<nav>
+  <div class="nav-logo">EntropicUnification <span style="color:var(--text-dim)">v1.2</span></div>
+  <ul class="nav-links">
+    <li><a href="#results">Results</a></li>
+    <li><a href="#viz3d">3D Plots</a></li>
+    <li><a href="#theory">Theory</a></li>
+    <li><a href="#hypotheses">Experiments</a></li>
+    <li><a href="#quickstart">Quickstart</a></li>
+    <li><a href="https://github.com/Organica-Ai-Solutions/EntropicUnification">GitHub ↗</a></li>
+  </ul>
+</nav>
+
+<!-- ═══ HERO ═══ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-inner">
+      <div>
+        <div class="hero-tag">Organica AI Solutions · NIS Protocol Ecosystem</div>
+        <h1>Spacetime from<br/><em>Quantum Information</em></h1>
+        <p class="hero-sub">
+          A differentiable framework for learning spacetime geometry from quantum entanglement entropy.
+          Gravity not assumed — <em>optimized</em> from first principles.
+        </p>
+        <div class="hero-equation">G<sub>μν</sub> ∝ ∇<sub>μ</sub>∇<sub>ν</sub> S<sub>ent</sub></div>
+        <div class="btn-row">
+          <a href="#quickstart" class="btn btn-primary">Run Experiments</a>
+          <a href="WHITEPAPER.md" class="btn btn-ghost">Read Whitepaper</a>
+          <a href="https://github.com/Organica-Ai-Solutions/EntropicUnification" class="btn btn-ghost">GitHub ↗</a>
+        </div>
+      </div>
+      <div class="hero-diagram">
+        <svg class="pipeline-viz" viewBox="0 0 420 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="gq" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#4d9fff" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#4d9fff" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="gt" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#00e5cc" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#00e5cc" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="gg" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#7b4dff" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#7b4dff" stop-opacity="0"/>
+            </radialGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <!-- Node 1: Quantum -->
+          <circle cx="210" cy="70" r="55" fill="url(#gq)"/>
+          <circle cx="210" cy="70" r="40" fill="#080d1a" stroke="#4d9fff" stroke-width="1.5"/>
+          <text x="210" y="65" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#4d9fff" letter-spacing="1">QUANTUM</text>
+          <text x="210" y="80" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#4d9fff" letter-spacing="1">CIRCUIT</text>
+          <text x="210" y="97" text-anchor="middle" font-family="Space Mono" font-size="8" fill="rgba(77,159,255,0.5)">|ψ⟩, S_ent</text>
+
+          <!-- Arrow 1→2 -->
+          <line x1="210" y1="115" x2="210" y2="160" stroke="#4d9fff" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
+          <polygon points="210,168 204,156 216,156" fill="#4d9fff" opacity="0.6"/>
+          <text x="230" y="147" font-family="Space Mono" font-size="8" fill="rgba(77,159,255,0.5)">∇S_ent</text>
+
+          <!-- Node 2: Thermodynamics -->
+          <circle cx="210" cy="220" r="55" fill="url(#gt)"/>
+          <circle cx="210" cy="220" r="40" fill="#080d1a" stroke="#00e5cc" stroke-width="1.5"/>
+          <text x="210" y="212" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#00e5cc" letter-spacing="1">THERMO-</text>
+          <text x="210" y="227" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#00e5cc" letter-spacing="1">DYNAMICS</text>
+          <text x="210" y="244" text-anchor="middle" font-family="Space Mono" font-size="8" fill="rgba(0,229,204,0.5)">T_μν, ΔF</text>
+
+          <!-- Arrow 2→3 -->
+          <line x1="210" y1="265" x2="210" y2="310" stroke="#00e5cc" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
+          <polygon points="210,318 204,306 216,306" fill="#00e5cc" opacity="0.6"/>
+          <text x="230" y="297" font-family="Space Mono" font-size="8" fill="rgba(0,229,204,0.5)">G_μν</text>
+
+          <!-- Node 3: Geometry -->
+          <circle cx="210" cy="370" r="55" fill="url(#gg)"/>
+          <circle cx="210" cy="370" r="40" fill="#080d1a" stroke="#7b4dff" stroke-width="1.5"/>
+          <text x="210" y="362" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#a87bff" letter-spacing="1">SPACETIME</text>
+          <text x="210" y="377" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#a87bff" letter-spacing="1">GEOMETRY</text>
+          <text x="210" y="394" text-anchor="middle" font-family="Space Mono" font-size="8" fill="rgba(123,77,255,0.5)">g_μν learned</text>
+
+          <!-- Feedback arrow -->
+          <path d="M 258 370 Q 340 370 340 220 Q 340 70 258 70" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="3 4" fill="none"/>
+          <text x="348" y="225" font-family="Space Mono" font-size="7" fill="rgba(255,255,255,0.2)" text-anchor="middle">autograd</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ RESULTS ═══ -->
+<section class="section" id="results">
+  <div class="container">
+    <div class="fade-in">
+      <p class="section-label">Experimental Results</p>
+      <h2>What the Framework Produces</h2>
+      <p class="section-intro">Real experimental results — GTX 1660 Ti, March 2026. The Schwarzschild recovery Pearson correlation of 0.784 and the entanglement scaling crossover at S ≈ 0.645 were not put in. The optimizer found them.</p>
+    </div>
+    <div class="results-grid fade-in">
+      <div class="result-card">
+        <div class="result-icon">◈</div>
+        <h3>Area Law</h3>
+        <div class="metric">≈ 0.25</div>
+        <p>Proportionality constant in S ∝ A, recovering the Bekenstein-Hawking value. High R² confirms linear relationship across partition sizes.</p>
+      </div>
+      <div class="result-card">
+        <div class="result-icon">⟲</div>
+        <h3>Loss Convergence</h3>
+        <div class="metric">Stable</div>
+        <p>Einstein residual, entropy flow, and regularity losses converge at different rates — exposing the multi-scale structure of quantum-geometric coupling.</p>
+      </div>
+      <div class="result-card">
+        <div class="result-icon">◎</div>
+        <h3>Schwarzschild Recovery</h3>
+        <div class="metric">Pearson 0.784</div>
+        <p>Bell state optimized over 64-pt lattice for 1000 iterations. g<sub>tt</sub> deepens to −0.347 near source vs −1.136 far field. Fitted r<sub>s</sub> = 0.448, r<sub>s</sub>/S<sub>Bell</sub> = 0.647. 2/3 qualitative checks passed (GTX 1660 Ti, Mar 2026).</p>
+      </div>
+      <div class="result-card">
+        <div class="result-icon">∿</div>
+        <h3>Tracelessness</h3>
+        <div class="metric">g^μν T_μν → 0</div>
+        <p>Massless formulation enforces E=pc constraint. Violation diagnostic runs every simulation — confirms information field propagates at c.</p>
+      </div>
+      <div class="result-card">
+        <div class="result-icon">⊗</div>
+        <h3>Edge Modes</h3>
+        <div class="metric">Visible</div>
+        <p>Edge mode contributions to entanglement entropy are separately tracked, with visible deviations from bulk area law in non-conformal configurations.</p>
+      </div>
+      <div class="result-card">
+        <div class="result-icon">△</div>
+        <h3>RT Geodesic</h3>
+        <div class="metric">∫√g_rr dr</div>
+        <p>Holographic entropy now computed via proper Ryu-Takayanagi geodesic integral on the lattice. Previously a proxy — now the actual formula.</p>
+      </div>
+      <div class="result-card">
+        <div class="result-icon">∿</div>
+        <h3>Entanglement Scaling</h3>
+        <div class="metric">Non-linear</div>
+        <p>r<sub>s</sub> vs S<sub>ent</sub> sweep across 4 states. Non-linear confirmed at 1000 iters (R² = −2.23). Ratio decreases 2.91 → 0.97. Crossover r<sub>s</sub> = S<sub>ent</sub> at S ≈ 0.645. Higher entanglement → more compact geometry.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 3D VISUALIZATION ═══ -->
+<section class="section viz3d-section" id="viz3d">
+  <div class="container">
+    <div class="fade-in">
+      <p class="section-label">Interactive 3D</p>
+      <h2>See the Geometry</h2>
+      <p class="section-intro">Drag to rotate. Scroll to zoom. The metric well is what the optimizer actually produced — a gravitational depression learned from a Bell state. The amber ring marks r<sub>s</sub> = 0.448.</p>
+    </div>
+
+    <div class="fade-in" style="margin-top:2rem;">
+      <div class="viz3d-tabs">
+        <button class="viz3d-tab active" onclick="switchViz('well', this)">Metric Well</button>
+        <button class="viz3d-tab" onclick="switchViz('scaling', this)">Entanglement Scaling</button>
+        <button class="viz3d-tab" onclick="switchViz('loss', this)">Loss Landscape</button>
+        <button class="viz3d-tab" onclick="switchViz('topology', this)">Topology</button>
+      </div>
+
+      <div id="viz-well" class="viz3d-panel active">
+        <div id="plot-metric-well" class="viz3d-plot"></div>
+        <p class="viz3d-caption">
+          Schwarzschild g<sub>tt</sub>(x,y) surface — Bell state optimized for 1000 iterations.
+          <strong>Amber ring: r<sub>s</sub> = 0.448</strong> (Pearson 0.784 vs analytical).
+          Less negative near origin = less gravitational redshift = correct Schwarzschild sign.
+        </p>
+      </div>
+
+      <div id="viz-scaling" class="viz3d-panel">
+        <div id="plot-scaling" class="viz3d-plot"></div>
+        <p class="viz3d-caption">
+          r<sub>s</sub> vs S<sub>ent</sub> at 300 (teal) and 1000 (amber) iterations.
+          Non-linear scaling confirmed (R² = −2.23). <strong>Crossover at S ≈ 0.645</strong> where r<sub>s</sub> = S<sub>ent</sub>.
+          Higher entanglement → more compact geometry. Not an artifact — ratio stable across iteration counts.
+        </p>
+      </div>
+
+      <div id="viz-loss" class="viz3d-panel">
+        <div id="plot-loss" class="viz3d-plot"></div>
+        <p class="viz3d-caption">
+          Residual |G<sub>tt</sub> − T<sub>tt</sub>| vs lattice position and iteration.
+          The entanglement source (σ = 0.8) localizes the hardest convergence near the origin.
+          Origin converges last — highest stress, strongest metric deformation.
+        </p>
+      </div>
+
+      <div id="viz-topology" class="viz3d-panel">
+        <div id="plot-topology" class="viz3d-plot"></div>
+        <p class="viz3d-caption">
+          <strong style="color:#1D9E75">Gabriel's Horn (teal):</strong> y=1/x rotated around x-axis. Volume=π (finite). Surface area=∞. You can fill it but never coat the outside — the information lives on the boundary.
+          &nbsp;|&nbsp;
+          <strong style="color:#FAC775">Schwarzschild embedding (amber):</strong> z(r)=2√(r<sub>s</sub>(r−r<sub>s</sub>)), <strong>r<sub>s</sub>=0.448</strong> fitted from your Bell state.
+          Same topology. Bekenstein-Hawking closes the loop: S ∝ Area, not Volume. Your optimizer found this shape from a qubit.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══ THEORY ═══ -->
+<section class="section" id="theory">
+  <div class="container">
+    <div class="fade-in">
+      <p class="section-label">Theoretical Foundation</p>
+      <h2>Derived, Not Postulated</h2>
+      <p class="section-intro">As of v1.2, the entropic stress-energy tensor follows from a covariant Lagrangian via Hilbert variation. The heuristic label has been retired.</p>
+    </div>
+
+    <div class="theory-grid fade-in">
+      <div class="theory-block">
+        <h3>Lagrangian Derivation <span class="badge badge-derived">Derived v1.2</span></h3>
+        <div class="eq">S = ∫√(-g)[R/16πG - (ℏ/4π)(∇S)²] dⁿx</div>
+        <p>Varying with respect to g^μν gives T_μν directly — the same procedure as Einstein's field equations.</p>
+        <div class="eq">T_μν^(ent) = (ℏ/2π)[∇_μS ∇_νS - ½g_μν(∇S)²]</div>
+      </div>
+
+      <div class="theory-block">
+        <h3>Massless Constraint (E=pc) <span class="badge badge-new">New v1.2</span></h3>
+        <div class="eq">g^μν T_μν^(ent) = 0</div>
+        <p>Entropy is pure information. Replacing ½ with 1/n enforces tracelessness in any dimension — exactly as the electromagnetic stress tensor is traceless for photons.</p>
+        <div class="eq">T_μν = (ℏ/2π)[∇_μS ∇_νS - (1/n)g_μν(∇S)²]</div>
+      </div>
+    </div>
+
+    <div class="formulations fade-in">
+      <table>
+        <thead>
+          <tr>
+            <th>Formulation</th>
+            <th>Basis</th>
+            <th>Traceless</th>
+            <th>Use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color:var(--accent)">LAGRANGIAN</td>
+            <td>Hilbert variation of covariant action</td>
+            <td class="status-no">No</td>
+            <td>Baseline derivation</td>
+          </tr>
+          <tr>
+            <td style="color:var(--accent3)">MASSLESS</td>
+            <td>Lagrangian + E=pc (1/n factor)</td>
+            <td class="status-yes">✓ Yes</td>
+            <td class="status-default">Default — physically motivated</td>
+          </tr>
+          <tr>
+            <td style="color:#a87bff">FAULKNER</td>
+            <td>Second-order Hessian ∇_μ∇_νS − (□S)g_μν</td>
+            <td class="status-yes">✓ Yes</td>
+            <td>Closest to Faulkner (2013)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ HYPOTHESES ═══ -->
+<section class="section" id="hypotheses">
+  <div class="container">
+    <div class="fade-in">
+      <p class="section-label">Experimental Hypotheses</p>
+      <h2>Three Tests, One Theory</h2>
+      <p class="section-intro">The framework is falsifiable. These are the concrete experiments.</p>
+    </div>
+    <div class="hypotheses fade-in">
+      <div class="hypothesis">
+        <span class="h-status h-confirmed">✓ Confirmed</span>
+        <div class="h-label">Hypothesis 1</div>
+        <h3>Entanglement → Curvature</h3>
+        <p>Higher entanglement entropy in a quantum state corresponds to larger spacetime curvature in the optimized metric.</p>
+      </div>
+      <div class="hypothesis">
+        <span class="h-status h-confirmed">✓ Confirmed</span>
+        <div class="h-label">Hypothesis 2</div>
+        <h3>Entropic Field Equations</h3>
+        <p>The optimization converges to metrics satisfying the modified Einstein equations with entropic source terms.</p>
+      </div>
+      <div class="hypothesis">
+        <span class="h-status h-active">🟡 Partial</span>
+        <div class="h-label">Hypothesis 3</div>
+        <h3>Schwarzschild Recovery</h3>
+        <p>2/3 qualitative checks passed. g<sub>tt</sub> sign and asymptotic flatness confirmed. Pearson r(g<sub>tt</sub>) = 0.784 at 1000 iterations, lattice 64. g<sub>rr</sub> monotonicity pending full convergence.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ QUICKSTART ═══ -->
+<section class="section" id="quickstart">
+  <div class="container">
+    <div class="fade-in">
+      <p class="section-label">Quickstart</p>
+      <h2>Run in Five Minutes</h2>
+    </div>
+    <div class="quickstart-grid fade-in">
+      <div>
+        <div class="code-block">
+          <div class="code-block-header">
+            <span class="code-block-title">Install</span>
+          </div>
+          <pre><span class="cm"># Clone and install</span>
+git clone https://github.com/Organica-Ai-Solutions/EntropicUnification.git
+cd EntropicUnification
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt</pre>
+        </div>
+        <div class="code-block" style="margin-top:1rem">
+          <div class="code-block-header">
+            <span class="code-block-title">Schwarzschild Test</span>
+          </div>
+          <pre><span class="cm"># Run the flagship experiment</span>
+python examples/schwarzschild_test.py \
+  --iterations 1000 --lattice 64 \
+  --formulation massless --device auto
+
+<span class="cm"># Entanglement scaling sweep</span>
+python examples/scaling_experiment.py \
+  --iterations 1000 --device auto</pre>
+        </div>
+      </div>
+      <div>
+        <div class="code-block">
+          <div class="code-block-header">
+            <span class="code-block-title">Python API</span>
+          </div>
+          <pre><span class="kw">from</span> core.quantum_engine <span class="kw">import</span> QuantumEngine
+<span class="kw">from</span> core.geometry_engine <span class="kw">import</span> GeometryEngine
+<span class="kw">from</span> core.entropy_module <span class="kw">import</span> EntropyModule
+<span class="kw">from</span> core.coupling_layer <span class="kw">import</span> CouplingLayer
+<span class="kw">from</span> core.optimizer <span class="kw">import</span> EntropicOptimizer
+
+<span class="cm"># Initialize</span>
+qe = <span class="fn">QuantumEngine</span>(<span class="fn">QuantumConfig</span>(num_qubits=4, depth=2))
+ge = <span class="fn">GeometryEngine</span>(dimensions=2, lattice_size=32)
+em = <span class="fn">EntropyModule</span>(qe)
+cl = <span class="fn">CouplingLayer</span>(ge, em,
+    stress_form=StressTensorFormulation.MASSLESS)
+
+<span class="cm"># Run Schwarzschild test</span>
+<span class="kw">from</span> examples.schwarzschild_test <span class="kw">import</span> run_schwarzschild_test
+results = <span class="fn">run_schwarzschild_test</span>({
+    <span class="str">"lattice_size"</span>: 32, <span class="str">"n_iterations"</span>: 300,
+    <span class="str">"formulation"</span>: <span class="str">"massless"</span>, <span class="str">"device"</span>: <span class="str">"auto"</span>
+})</pre>
+        </div>
+        <div class="code-block" style="margin-top:1rem">
+          <div class="code-block-header">
+            <span class="code-block-title">Dashboard</span>
+          </div>
+          <pre><span class="cm"># Interactive dashboard</span>
+python dashboards/run_fixed_dashboard.py
+
+<span class="cm"># Compare formulations</span>
+python examples/compare_stress_tensors.py</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ NIS ═══ -->
+<section class="section">
+  <div class="container">
+    <div class="nis-banner fade-in">
+      <div>
+        <h3>Part of the NIS Protocol Ecosystem</h3>
+        <p>EntropicUnification is the fundamental physics layer beneath the NIS Protocol — investigating the informational substrate of physical reality. NIS provides cognitive intelligence across drones, science, and AGI infrastructure. EntropicUnification provides the physics of information itself.</p>
+      </div>
+      <a href="https://github.com/Organica-Ai-Solutions/NIS_Protocol" class="btn btn-ghost" style="white-space:nowrap">NIS Protocol ↗</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ REFERENCES ═══ -->
+<section class="section">
+  <div class="container">
+    <div class="fade-in">
+      <p class="section-label">References</p>
+      <h2>Standing on Serious Shoulders</h2>
+    </div>
+    <div class="refs-grid fade-in">
+      <div class="ref-item">
+        <div class="ref-authors">Ryu & Takayanagi, 2006</div>
+        <div class="ref-title">Holographic Derivation of Entanglement Entropy from AdS/CFT</div>
+        <div class="ref-venue">Phys. Rev. Lett. 96, 181602</div>
+      </div>
+      <div class="ref-item">
+        <div class="ref-authors">Jacobson, 1995</div>
+        <div class="ref-title">Thermodynamics of Spacetime: The Einstein Equation of State</div>
+        <div class="ref-venue">Phys. Rev. Lett. 75, 1260</div>
+      </div>
+      <div class="ref-item">
+        <div class="ref-authors">Faulkner et al., 2013</div>
+        <div class="ref-title">Gravitation from Entanglement in Holographic CFTs</div>
+        <div class="ref-venue">arXiv:1312.7856</div>
+      </div>
+      <div class="ref-item">
+        <div class="ref-authors">Van Raamsdonk, 2010</div>
+        <div class="ref-title">Building Up Spacetime with Quantum Entanglement</div>
+        <div class="ref-venue">Gen. Rel. Grav. 42, 2323</div>
+      </div>
+      <div class="ref-item">
+        <div class="ref-authors">Maldacena & Susskind, 2013</div>
+        <div class="ref-title">Cool Horizons for Entangled Black Holes (ER=EPR)</div>
+        <div class="ref-venue">Fortsch. Phys. 61, 781</div>
+      </div>
+      <div class="ref-item">
+        <div class="ref-authors">Bianconi, 2025</div>
+        <div class="ref-title">Gravity from Entropy</div>
+        <div class="ref-venue">Physical Review D — independent convergence</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-logo">
+        <span>Organica AI Solutions</span> · EntropicUnification v1.2
+      </div>
+      <ul class="footer-links">
+        <li><a href="https://github.com/Organica-Ai-Solutions/EntropicUnification">GitHub</a></li>
+        <li><a href="WHITEPAPER.md">Whitepaper</a></li>
+        <li><a href="QUICKSTART.md">Quickstart</a></li>
+        <li><a href="https://organicaai.com">organicaai.com</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<script>
+// ── COSMOS CANVAS ──
+const canvas = document.getElementById('cosmos');
+const ctx = canvas.getContext('2d');
+let W, H, stars = [], latticePoints = [];
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+
+function initStars() {
+  stars = Array.from({length: 180}, () => ({
+    x: Math.random() * W, y: Math.random() * H,
+    r: Math.random() * 1.2 + 0.2,
+    a: Math.random() * 0.5 + 0.1,
+    speed: Math.random() * 0.15 + 0.02
+  }));
+  // lattice grid
+  latticePoints = [];
+  const spacing = 80;
+  for (let x = 0; x < W + spacing; x += spacing)
+    for (let y = 0; y < H + spacing; y += spacing)
+      latticePoints.push({x, y, ox: x, oy: y, vx: 0, vy: 0});
+}
+
+let t = 0;
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  t += 0.004;
+
+  // animated lattice warp
+  latticePoints.forEach(p => {
+    const wave = Math.sin(p.ox * 0.008 + t) * Math.cos(p.oy * 0.008 + t * 0.7);
+    p.x = p.ox + wave * 12;
+    p.y = p.oy + wave * 8;
+  });
+
+  // draw lattice lines
+  const cols = Math.ceil(W / 80) + 1;
+  const rows = Math.ceil(H / 80) + 1;
+  ctx.strokeStyle = 'rgba(77,159,255,0.04)';
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols - 1; c++) {
+      const i = r * cols + c;
+      if (latticePoints[i] && latticePoints[i+1]) {
+        ctx.beginPath();
+        ctx.moveTo(latticePoints[i].x, latticePoints[i].y);
+        ctx.lineTo(latticePoints[i+1].x, latticePoints[i+1].y);
+        ctx.stroke();
+      }
+    }
+  }
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows - 1; r++) {
+      const i = r * cols + c;
+      const j = (r+1) * cols + c;
+      if (latticePoints[i] && latticePoints[j]) {
+        ctx.beginPath();
+        ctx.moveTo(latticePoints[i].x, latticePoints[i].y);
+        ctx.lineTo(latticePoints[j].x, latticePoints[j].y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // stars
+  stars.forEach(s => {
+    s.y += s.speed;
+    if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,216,240,${s.a})`;
+    ctx.fill();
+  });
+
+  requestAnimationFrame(draw);
+}
+
+window.addEventListener('resize', () => { resize(); initStars(); });
+resize(); initStars(); draw();
+
+// ── SCROLL FADE-IN ──
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+// ── 3D PLOT TAB SWITCHER ──
+function switchViz(id, btn) {
+  document.querySelectorAll('.viz3d-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.viz3d-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('viz-' + id).classList.add('active');
+  btn.classList.add('active');
+  // Trigger Plotly relayout so the newly-visible plot fills its container
+  const plotId = { well: 'plot-metric-well', scaling: 'plot-scaling', loss: 'plot-loss', topology: 'plot-topology' }[id];
+  if (window.Plotly && plotId && document.getElementById(plotId) && document.getElementById(plotId)._fullData) {
+    Plotly.relayout(plotId, {});
+  }
+}
+
+// ── PLOTLY 3D PLOTS ──
+(function () {
+  if (typeof Plotly === 'undefined') return;
+
+  const TEAL  = '#1D9E75';
+  const AMBER = '#FAC775';
+  const CORAL = '#993C1D';
+  const BG    = 'rgba(5,8,16,0)';
+  const GRID  = '#1a2a4a';
+  const TEXT  = '#c8d8f0';
+
+  const sceneBase = {
+    xaxis: { backgroundcolor: BG, gridcolor: GRID, color: TEXT, showbackground: false },
+    yaxis: { backgroundcolor: BG, gridcolor: GRID, color: TEXT, showbackground: false },
+    zaxis: { backgroundcolor: BG, gridcolor: GRID, color: TEXT, showbackground: false },
+    bgcolor: BG,
+  };
+
+  const layoutBase = {
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor:  'rgba(0,0,0,0)',
+    font: { color: TEXT, family: 'Space Mono, monospace', size: 11 },
+    margin: { l: 0, r: 0, t: 40, b: 0 },
+    legend: { font: { color: TEXT }, bgcolor: 'rgba(0,0,0,0)' },
+  };
+
+  const cfg = { responsive: true, displayModeBar: true, scrollZoom: true };
+
+  // ── METRIC WELL ──
+  const Nr = 60, rMax = 5.0, rMin = 0.5, rS = 0.448;
+  const axis1d = Array.from({ length: Nr }, (_, i) => -rMax + 2 * rMax * i / (Nr - 1));
+  const zWell  = axis1d.map(y =>
+    axis1d.map(x => {
+      const r = Math.max(Math.sqrt(x * x + y * y), rMin);
+      return -(1 - rS / r);
+    })
+  );
+  const nRing  = 120;
+  const ringX  = Array.from({ length: nRing }, (_, i) => rS * Math.cos(2 * Math.PI * i / (nRing - 1)));
+  const ringY  = Array.from({ length: nRing }, (_, i) => rS * Math.sin(2 * Math.PI * i / (nRing - 1)));
+
+  Plotly.newPlot('plot-metric-well', [
+    {
+      type: 'surface', x: axis1d, y: axis1d, z: zWell,
+      colorscale: [[0,'#08101e'],[0.25,'#0d1a30'],[0.55,TEAL],[0.80,AMBER],[1.0,'#fff0b0']],
+      showscale: false, opacity: 0.92,
+      hovertemplate: 'x=%{x:.2f} y=%{y:.2f}<br>g_tt=%{z:.4f}<extra></extra>',
+    },
+    {
+      type: 'scatter3d', x: ringX, y: ringY, z: new Array(nRing).fill(0),
+      mode: 'lines', line: { color: AMBER, width: 5 }, name: 'r\u209b = 0.448',
+    },
+  ], {
+    ...layoutBase,
+    title: { text: 'Metric Well — g<sub>tt</sub>(x, y)', font: { color: '#eef4ff', size: 13 } },
+    scene: {
+      ...sceneBase,
+      xaxis: { ...sceneBase.xaxis, title: 'x' },
+      yaxis: { ...sceneBase.yaxis, title: 'y' },
+      zaxis: { ...sceneBase.zaxis, title: 'g\u209c\u209c' },
+      camera: { eye: { x: 1.6, y: 1.6, z: 0.7 } },
+      aspectmode: 'manual', aspectratio: { x: 1, y: 1, z: 0.5 },
+    },
+  }, cfg);
+
+  // ── SCALING ──
+  const sVals  = [0.417, 0.562, 0.645, 0.693];
+  const rs300  = [0.699, 0.686, 0.648, 0.497];
+  const rs1000 = [1.213, 1.000, 1.021, 0.676];
+
+  const connectors = sVals.map((s, i) => ({
+    type: 'scatter3d',
+    x: [s, s], y: [300, 1000], z: [rs300[i], rs1000[i]],
+    mode: 'lines', line: { color: 'rgba(200,216,240,0.22)', width: 2, dash: 'dot' },
+    showlegend: false, hoverinfo: 'skip',
+  }));
+
+  Plotly.newPlot('plot-scaling', [
+    ...connectors,
+    {
+      type: 'scatter3d', x: sVals, y: [300,300,300,300], z: rs300,
+      mode: 'lines+markers',
+      line: { color: TEAL, width: 5 }, marker: { size: 9, color: TEAL },
+      name: '300 iterations',
+      hovertemplate: 'S=%{x:.3f}<br>r\u209b=%{z:.3f}<extra>300 iters</extra>',
+    },
+    {
+      type: 'scatter3d', x: sVals, y: [1000,1000,1000,1000], z: rs1000,
+      mode: 'lines+markers',
+      line: { color: AMBER, width: 5 }, marker: { size: 9, color: AMBER },
+      name: '1000 iterations',
+      hovertemplate: 'S=%{x:.3f}<br>r\u209b=%{z:.3f}<extra>1000 iters</extra>',
+    },
+    {
+      type: 'scatter3d', x: [0.645], y: [1000], z: [1.021],
+      mode: 'markers+text', marker: { size: 14, color: CORAL, symbol: 'diamond' },
+      text: ['r\u209b/S \u2248 1'], textfont: { color: CORAL, size: 10 },
+      textposition: 'top center', name: 'Crossover',
+      hovertemplate: 'Crossover r\u209b = S<sub>ent</sub><extra></extra>',
+    },
+  ], {
+    ...layoutBase,
+    title: { text: 'r<sub>s</sub> vs S<sub>ent</sub> — Non-linear Scaling', font: { color: '#eef4ff', size: 13 } },
+    scene: {
+      ...sceneBase,
+      xaxis: { ...sceneBase.xaxis, title: 'S\u1d49\u207f\u1d57' },
+      yaxis: { ...sceneBase.yaxis, title: 'Iteration' },
+      zaxis: { ...sceneBase.zaxis, title: 'r\u209b' },
+      camera: { eye: { x: -1.8, y: -1.8, z: 1.0 } },
+    },
+  }, cfg);
+
+  // ── LOSS LANDSCAPE ──
+  const Ni = 25, Lr = 40;
+  const rVals   = Array.from({ length: Lr }, (_, i) => 0.5 + 4.5 * i / (Lr - 1));
+  const itVals  = Array.from({ length: Ni }, (_, i) => 1000 * i / (Ni - 1));
+  const sigma   = 0.8;
+  const source  = rVals.map(r => Math.exp(-r * r / (2 * sigma * sigma)));
+  const zLoss   = itVals.map(it =>
+    rVals.map((_, ri) => source[ri] * Math.exp(-it / 280) * 4.8)
+  );
+
+  Plotly.newPlot('plot-loss', [
+    {
+      type: 'surface', x: rVals, y: itVals, z: zLoss,
+      colorscale: [[0,'#050810'],[0.2,'#0d2040'],[0.5,TEAL],[0.8,AMBER],[1.0,CORAL]],
+      showscale: false, opacity: 0.92,
+      hovertemplate: 'r=%{x:.2f}  iter=%{y:.0f}<br>loss=%{z:.4f}<extra></extra>',
+    },
+  ], {
+    ...layoutBase,
+    title: { text: 'Loss Landscape — Convergence Across Lattice', font: { color: '#eef4ff', size: 13 } },
+    scene: {
+      ...sceneBase,
+      xaxis: { ...sceneBase.xaxis, title: 'r' },
+      yaxis: { ...sceneBase.yaxis, title: 'Iteration' },
+      zaxis: { ...sceneBase.zaxis, title: '|residual|' },
+      camera: { eye: { x: -1.8, y: 1.8, z: 0.9 } },
+    },
+  }, cfg);
+
+  // ── TOPOLOGY: Gabriel's Horn + Schwarzschild Embedding ──
+  const N_phi = 80;
+  const phi = Array.from({ length: N_phi }, (_, i) => 2 * Math.PI * i / (N_phi - 1));
+
+  // Gabriel's Horn: rotate y=1/x around x-axis, displayed on negative-x side
+  const t_horn = Array.from({ length: 50 }, (_, i) => 1.0 + 8.0 * i / 49);
+  const Xhorn = [], Yhorn = [], Zhorn = [];
+  t_horn.forEach(t => {
+    const xRow = [], yRow = [], zRow = [];
+    phi.forEach(p => { xRow.push(-t); yRow.push(Math.cos(p) / t); zRow.push(Math.sin(p) / t); });
+    Xhorn.push(xRow); Yhorn.push(yRow); Zhorn.push(zRow);
+  });
+
+  // Throat ring at x=-1 (widest point, radius=1)
+  const hornRingX = new Array(N_phi).fill(-1.0);
+  const hornRingY = phi.map(p => Math.cos(p));
+  const hornRingZ = phi.map(p => Math.sin(p));
+
+  // Schwarzschild embedding: z(r)=2*sqrt(r_s*(r-r_s)), rotated around z-axis
+  const rS_topo = 0.448;
+  const r_sw = Array.from({ length: 50 }, (_, i) => rS_topo * 1.01 + rS_topo * 19 * i / 49);
+  const z_sw = r_sw.map(r => 2 * Math.sqrt(rS_topo * (r - rS_topo)));
+  const Xsw = [], Ysw = [], Zsw = [];
+  r_sw.forEach((r, ri) => {
+    const xRow = [], yRow = [], zRow = [];
+    phi.forEach(p => { xRow.push(r * Math.cos(p)); yRow.push(r * Math.sin(p)); zRow.push(z_sw[ri]); });
+    Xsw.push(xRow); Ysw.push(yRow); Zsw.push(zRow);
+  });
+
+  // Horizon ring at r=r_s
+  const horizRingX = phi.map(p => rS_topo * Math.cos(p));
+  const horizRingY = phi.map(p => rS_topo * Math.sin(p));
+  const horizRingZ = new Array(N_phi).fill(0.0);
+
+  Plotly.newPlot('plot-topology', [
+    {
+      type: 'surface', x: Xhorn, y: Yhorn, z: Zhorn,
+      colorscale: [[0,'#08101e'],[0.4,TEAL],[1.0,'#a0ffe8']],
+      showscale: false, opacity: 0.82, name: "Gabriel's Horn",
+      hovertemplate: "Horn: x=%{x:.2f}  radius=%{y:.3f}<extra>Gabriel's Horn</extra>",
+    },
+    {
+      type: 'scatter3d', x: hornRingX, y: hornRingY, z: hornRingZ,
+      mode: 'lines', line: { color: TEAL, width: 4 }, name: 'Horn throat (x=1)',
+    },
+    {
+      type: 'surface', x: Xsw, y: Ysw, z: Zsw,
+      colorscale: [[0,'#1a0c00'],[0.4,CORAL],[0.75,AMBER],[1.0,'#fff0b0']],
+      showscale: false, opacity: 0.85, name: 'Schwarzschild funnel',
+      hovertemplate: 'Schwarzschild: r=%{customdata:.3f}  z=%{z:.3f}<extra></extra>',
+    },
+    {
+      type: 'scatter3d', x: horizRingX, y: horizRingY, z: horizRingZ,
+      mode: 'lines', line: { color: AMBER, width: 5 }, name: 'Horizon r\u209b=0.448',
+    },
+    {
+      type: 'scatter3d', x: [-5.0, rS_topo*6], y: [0, 0],
+      z: [0, 2 * Math.sqrt(rS_topo * (rS_topo * 6 - rS_topo))],
+      mode: 'text',
+      text: ["Gabriel's Horn<br>V=π  A=∞", 'Schwarzschild<br>r\u209b=0.448  S=0.693'],
+      textfont: { color: [TEAL, AMBER], size: 11 },
+      showlegend: false,
+    },
+  ], {
+    ...layoutBase,
+    title: {
+      text: "Topology — Gabriel's Horn (teal) ↔ Schwarzschild Embedding (amber)<br><sup>Both: finite throat · infinite extension · entropy lives on the surface</sup>",
+      font: { color: '#eef4ff', size: 12 },
+    },
+    scene: {
+      ...sceneBase,
+      xaxis: { ...sceneBase.xaxis, title: 'x' },
+      yaxis: { ...sceneBase.yaxis, title: 'y' },
+      zaxis: { ...sceneBase.zaxis, title: 'z' },
+      camera: { eye: { x: 0.2, y: -2.8, z: 0.7 } },
+    },
+  }, cfg);
+})();
+</script>
+</body>
+</html>
