@@ -4,6 +4,16 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>EntropicUnification — Spacetime from Quantum Information</title>
+<meta name="description" content="A differentiable framework for learning spacetime geometry from quantum entanglement entropy. Gravity not assumed — optimized from first principles. Schwarzschild recovery Pearson 0.784."/>
+<meta property="og:type"        content="website"/>
+<meta property="og:title"       content="EntropicUnification — Spacetime from Quantum Information"/>
+<meta property="og:description" content="Differentiable framework learning spacetime geometry from entanglement entropy. Gravity optimized, not assumed. GTX 1660 Ti experimental results, March 2026."/>
+<meta property="og:image"       content="https://organica-ai-solutions.github.io/EntropicUnification/images/og_preview.png"/>
+<meta property="og:url"         content="https://organica-ai-solutions.github.io/EntropicUnification/"/>
+<meta name="twitter:card"       content="summary_large_image"/>
+<meta name="twitter:title"      content="EntropicUnification — Spacetime from Quantum Information"/>
+<meta name="twitter:description"content="Differentiable framework learning spacetime geometry from entanglement entropy. Gravity optimized, not assumed."/>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23030609' stroke='%231D9E75' stroke-width='2'/><text x='16' y='21' text-anchor='middle' font-size='14' fill='%231D9E75' font-family='monospace'>S</text></svg>"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
 <style>
@@ -780,8 +790,12 @@ footer {
 .fade-in.visible { opacity: 1; transform: none; }
 
 /* Stagger children */
-.fade-in:nth-child(2) { transition-delay: 0.1s; }
-.fade-in:nth-child(3) { transition-delay: 0.2s; }
+.fade-in:nth-child(2) { transition-delay: 0.10s; }
+.fade-in:nth-child(3) { transition-delay: 0.20s; }
+.fade-in:nth-child(4) { transition-delay: 0.30s; }
+.fade-in:nth-child(5) { transition-delay: 0.40s; }
+.fade-in:nth-child(6) { transition-delay: 0.50s; }
+.fade-in:nth-child(7) { transition-delay: 0.55s; }
 
 /* ═══════════════════════════════════════════
    DIVIDERS
@@ -878,7 +892,7 @@ footer {
     <li><a href="#quickstart">Quickstart</a></li>
     <li class="nav-cta"><a href="https://github.com/Organica-Ai-Solutions/EntropicUnification">GitHub ↗</a></li>
   </ul>
-  <div class="nav-hamburger" id="hamburger" onclick="toggleMenu()" aria-label="Menu">
+  <div class="nav-hamburger" id="hamburger" onclick="toggleMenu()" aria-label="Menu" aria-expanded="false">
     <span></span><span></span><span></span>
   </div>
 </nav>
@@ -897,7 +911,7 @@ footer {
         <div class="hero-equation">G<sub>μν</sub> ∝ ∇<sub>μ</sub>∇<sub>ν</sub> S<sub>ent</sub></div>
         <div class="btn-row">
           <a href="#quickstart" class="btn btn-primary">Run Experiments</a>
-          <a href="WHITEPAPER.md" class="btn btn-ghost">Read Whitepaper</a>
+          <a href="https://github.com/Organica-Ai-Solutions/EntropicUnification/blob/main/WHITEPAPER.md" class="btn btn-ghost">Read Whitepaper</a>
           <a href="https://github.com/Organica-Ai-Solutions/EntropicUnification" class="btn btn-ghost">GitHub ↗</a>
         </div>
       </div>
@@ -969,11 +983,11 @@ footer {
         <span class="stat-label">Fitted r_s</span>
       </div>
       <div class="stat-item">
-        <span class="stat-value" data-count="1500" data-decimals="0">0</span>
-        <span class="stat-label">Max Iterations</span>
+        <span class="stat-value" data-count="1000" data-decimals="0">0</span>
+        <span class="stat-label">H3 Iterations</span>
       </div>
       <div class="stat-item">
-        <span class="stat-value" data-count="3" data-decimals="0">0</span>
+        <span class="stat-value" data-count="5" data-decimals="0">0</span>
         <span class="stat-label">Formulations</span>
       </div>
       <div class="stat-item">
@@ -1145,6 +1159,18 @@ footer {
             <td class="status-yes">✓ Yes</td>
             <td>Closest to Faulkner (2013)</td>
           </tr>
+          <tr>
+            <td style="color:var(--amber)">JACOBSON</td>
+            <td>Thermodynamic — Clausius relation δQ = TdS</td>
+            <td class="status-no">No</td>
+            <td>Jacobson (1995) thermodynamic route</td>
+          </tr>
+          <tr>
+            <td style="color:var(--coral)">CANONICAL</td>
+            <td>Symmetric stress tensor — classical field theory</td>
+            <td class="status-no">No</td>
+            <td>Reference / comparison baseline</td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -1174,7 +1200,7 @@ footer {
         <p>The optimization converges to metrics satisfying the modified Einstein equations with entropic source terms.</p>
       </div>
       <div class="hypothesis">
-        <span class="h-status h-active">🟡 Partial</span>
+        <span class="h-status h-active">◑ Partial</span>
         <div class="h-label">Hypothesis 3</div>
         <h3>Schwarzschild Recovery</h3>
         <p>2/3 qualitative checks passed. g<sub>tt</sub> sign and asymptotic flatness confirmed. Pearson r(g<sub>tt</sub>) = 0.784 at 1000 iterations, lattice 64. g<sub>rr</sub> monotonicity requires full 3+1D Riemann.</p>
@@ -1201,7 +1227,9 @@ footer {
           <pre><span class="cm"># Clone and install</span>
 git clone https://github.com/Organica-Ai-Solutions/EntropicUnification.git
 cd EntropicUnification
-python -m venv venv && source venv/bin/activate
+python -m venv venv
+<span class="cm"># Linux / macOS:</span>  source venv/bin/activate
+<span class="cm"># Windows:</span>        venv\Scripts\activate
 pip install -r requirements.txt</pre>
         </div>
         <div class="code-block" style="margin-top:1rem">
@@ -1326,8 +1354,8 @@ python examples/compare_stress_tensors.py</pre>
       </div>
       <ul class="footer-links">
         <li><a href="https://github.com/Organica-Ai-Solutions/EntropicUnification">GitHub</a></li>
-        <li><a href="WHITEPAPER.md">Whitepaper</a></li>
-        <li><a href="QUICKSTART.md">Quickstart</a></li>
+        <li><a href="https://github.com/Organica-Ai-Solutions/EntropicUnification/blob/main/WHITEPAPER.md">Whitepaper</a></li>
+        <li><a href="https://github.com/Organica-Ai-Solutions/EntropicUnification/blob/main/QUICKSTART.md">Quickstart</a></li>
         <li><a href="https://organicaai.com">organicaai.com</a></li>
       </ul>
     </div>
@@ -1348,6 +1376,7 @@ function toggleMenu() {
   const hb = document.getElementById('hamburger');
   links.classList.toggle('open');
   hb.classList.toggle('open');
+  hb.setAttribute('aria-expanded', links.classList.contains('open') ? 'true' : 'false');
 }
 
 // ── NAV ACTIVE LINK ──
@@ -1484,11 +1513,27 @@ document.querySelectorAll('[data-count]').forEach(el => counterObserver.observe(
 // ── CODE COPY ──
 function copyCode(btn) {
   const pre = btn.closest('.code-block').querySelector('pre');
-  navigator.clipboard.writeText(pre.textContent.trim()).then(() => {
+  const text = pre.textContent.trim();
+  const done = () => {
     btn.textContent = 'copied!';
     btn.classList.add('copied');
     setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 2000);
-  });
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand('copy'); done(); } catch (_) {}
+      document.body.removeChild(ta);
+    });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); done(); } catch (_) {}
+    document.body.removeChild(ta);
+  }
 }
 
 // ── 3D PLOT TAB SWITCHER ──
