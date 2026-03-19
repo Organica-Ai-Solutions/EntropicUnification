@@ -1,15 +1,17 @@
 import torch
 
 
-def fixed_finite_difference(tensor, order=1, axis=0):
+def fixed_finite_difference(tensor, order=1, axis=0, dx=1.0):
     """
     A robust implementation of finite difference that handles different tensor dimensions.
-    
+
     Args:
         tensor: Input tensor to take derivatives of
         order: Order of the derivative (1 or 2)
         axis: Axis along which to take the derivative
-        
+        dx: Grid spacing (default 1.0). Derivatives are divided by dx (order 1)
+            or dx² (order 2) so that results have correct physical units.
+
     Returns:
         Tensor containing the finite difference approximation
     """
@@ -39,26 +41,26 @@ def fixed_finite_difference(tensor, order=1, axis=0):
             s_curr[axis] = i
             s_next[axis] = i + 1
             
-            # Central difference
-            result[tuple(s_curr)] = (tensor[tuple(s_next)] - tensor[tuple(s_prev)]) / 2.0
-        
-        # Forward difference for first point
+            # Central difference: (f_{i+1} - f_{i-1}) / (2 dx)
+            result[tuple(s_curr)] = (tensor[tuple(s_next)] - tensor[tuple(s_prev)]) / (2.0 * dx)
+
+        # Forward difference for first point: (f_1 - f_0) / dx
         if axis_size > 1:
             s_first = [slice(None)] * len(shape)
             s_second = [slice(None)] * len(shape)
             s_first[axis] = 0
             s_second[axis] = 1
-            
-            result[tuple(s_first)] = tensor[tuple(s_second)] - tensor[tuple(s_first)]
-        
-        # Backward difference for last point
+
+            result[tuple(s_first)] = (tensor[tuple(s_second)] - tensor[tuple(s_first)]) / dx
+
+        # Backward difference for last point: (f_N - f_{N-1}) / dx
         if axis_size > 1:
             s_last = [slice(None)] * len(shape)
             s_second_last = [slice(None)] * len(shape)
             s_last[axis] = axis_size - 1
             s_second_last[axis] = axis_size - 2
-            
-            result[tuple(s_last)] = tensor[tuple(s_last)] - tensor[tuple(s_second_last)]
+
+            result[tuple(s_last)] = (tensor[tuple(s_last)] - tensor[tuple(s_second_last)]) / dx
     
     elif order == 2:
         # Second derivative
@@ -73,9 +75,11 @@ def fixed_finite_difference(tensor, order=1, axis=0):
             s_curr[axis] = i
             s_next[axis] = i + 1
             
-            # Central difference for second derivative
-            result[tuple(s_curr)] = tensor[tuple(s_next)] - 2 * tensor[tuple(s_curr)] + tensor[tuple(s_prev)]
-        
+            # Central difference for second derivative: (f_{i+1} - 2f_i + f_{i-1}) / dx²
+            result[tuple(s_curr)] = (
+                tensor[tuple(s_next)] - 2 * tensor[tuple(s_curr)] + tensor[tuple(s_prev)]
+            ) / (dx * dx)
+
         # Forward difference for first point
         if axis_size > 2:
             s_first = [slice(None)] * len(shape)
@@ -84,9 +88,11 @@ def fixed_finite_difference(tensor, order=1, axis=0):
             s_first[axis] = 0
             s_second[axis] = 1
             s_third[axis] = 2
-            
-            result[tuple(s_first)] = tensor[tuple(s_third)] - 2 * tensor[tuple(s_second)] + tensor[tuple(s_first)]
-        
+
+            result[tuple(s_first)] = (
+                tensor[tuple(s_third)] - 2 * tensor[tuple(s_second)] + tensor[tuple(s_first)]
+            ) / (dx * dx)
+
         # Backward difference for last point
         if axis_size > 2:
             s_last = [slice(None)] * len(shape)
@@ -95,8 +101,10 @@ def fixed_finite_difference(tensor, order=1, axis=0):
             s_last[axis] = axis_size - 1
             s_second_last[axis] = axis_size - 2
             s_third_last[axis] = axis_size - 3
-            
-            result[tuple(s_last)] = tensor[tuple(s_last)] - 2 * tensor[tuple(s_second_last)] + tensor[tuple(s_third_last)]
+
+            result[tuple(s_last)] = (
+                tensor[tuple(s_last)] - 2 * tensor[tuple(s_second_last)] + tensor[tuple(s_third_last)]
+            ) / (dx * dx)
     
     else:
         raise ValueError("Only 1st and 2nd order derivatives are supported")

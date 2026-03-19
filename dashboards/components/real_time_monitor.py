@@ -285,14 +285,25 @@ def create_real_time_monitor_panel():
         fluid=True,
     )
 
-def create_real_time_metrics_figure(data=None, plot_style="plotly_white"):
+def create_real_time_metrics_figure(data=None, plot_style="plotly_dark"):
     """Create a real-time metrics figure."""
     if data is None:
-        # Create sample data for demonstration
-        timestamps = [time.time() - i for i in range(60, 0, -1)]
-        loss_values = [np.exp(-i/20) for i in range(60)]
-        entropy_values = [0.2 + 0.1 * np.sin(i/10) for i in range(60)]
-        gradient_norm_values = [0.5 * np.exp(-i/30) for i in range(60)]
+        # No simulation running — return empty dark placeholder
+        fig = go.Figure()
+        fig.update_layout(
+            template=plot_style,
+            paper_bgcolor="#030609",
+            plot_bgcolor="#030609",
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            margin=dict(l=20, r=20, t=20, b=20),
+            annotations=[dict(
+                text="Start a simulation to see real-time metrics",
+                showarrow=False, xref="paper", yref="paper", x=0.5, y=0.5,
+                font=dict(size=13, color="rgba(255,255,255,0.35)", family="Space Mono, monospace"),
+            )],
+        )
+        return fig
     else:
         # Use actual data
         timestamps = data.get("timestamps", [])
@@ -315,7 +326,7 @@ def create_real_time_metrics_figure(data=None, plot_style="plotly_white"):
             y=loss_values,
             mode="lines",
             name="Loss",
-            line=dict(color="red", width=2),
+            line=dict(color="#993C1D", width=2),
         ),
         row=1, col=1,
         secondary_y=False,
@@ -327,21 +338,21 @@ def create_real_time_metrics_figure(data=None, plot_style="plotly_white"):
             x=timestamps,
             y=entropy_values,
             mode="lines",
-            name="Entropy",
-            line=dict(color="blue", width=2),
+            name="Entropy (approx)",
+            line=dict(color="#4d9fff", width=2),
         ),
         row=1, col=1,
         secondary_y=True,
     )
-    
+
     # Add gradient norm trace
     fig.add_trace(
         go.Scatter(
             x=timestamps,
             y=gradient_norm_values,
             mode="lines",
-            name="Gradient Norm",
-            line=dict(color="green", width=2),
+            name="Grad Norm (approx)",
+            line=dict(color="#1D9E75", width=2),
         ),
         row=1, col=1,
         secondary_y=False,
@@ -368,7 +379,7 @@ def create_real_time_metrics_figure(data=None, plot_style="plotly_white"):
         row=1, col=1,
         showgrid=True,
         gridwidth=1,
-        gridcolor="rgba(0, 0, 0, 0.1)",
+        gridcolor="rgba(255,255,255,0.07)",
     )
     
     fig.update_yaxes(
@@ -376,7 +387,7 @@ def create_real_time_metrics_figure(data=None, plot_style="plotly_white"):
         row=1, col=1,
         showgrid=True,
         gridwidth=1,
-        gridcolor="rgba(0, 0, 0, 0.1)",
+        gridcolor="rgba(255,255,255,0.07)",
         secondary_y=False,
     )
     

@@ -151,72 +151,51 @@ class QuantumEngine:
         return torch.abs(torch.dot(state1.conj(), state2)) ** 2
 
     def reduced_density_matrix(self, state: torch.Tensor, keep_qubits: Sequence[int]) -> torch.Tensor:
-        """Compute reduced density matrix using a simpler approach."""
-        # For now, let's use a very simple approach for small systems
-        # This is not efficient for large systems but will work for our demo
-        
-        # Create full density matrix
-        rho = torch.outer(state, state.conj())
-        
-        # If we're keeping all qubits, just return the full matrix
-        if len(keep_qubits) == self.num_qubits:
-            return rho
-            
-        # For small systems, we can just compute the reduced matrix directly
-        # by summing over the appropriate basis states
+        """Compute reduced density matrix by tracing out all qubits not in keep_qubits.
+
+        Uses tensor-reshape partial trace: O(2^n) instead of the O(2^{3n}) triple loop.
+        Works for arbitrary qubit orderings.
+        """
         n = self.num_qubits
-        keep_qubits = list(keep_qubits)
-        trace_qubits = [i for i in range(n) if i not in keep_qubits]
-        
-        # Dimensions of the reduced matrix
-        dim_reduced = 2 ** len(keep_qubits)
-        
-        # Create the reduced density matrix
-        rho_reduced = torch.zeros((dim_reduced, dim_reduced), dtype=torch.complex128)
-        
-        # Iterate over all basis states of the kept qubits
-        for i in range(dim_reduced):
-            for j in range(dim_reduced):
-                # Convert to binary representation
-                i_bin = format(i, f'0{len(keep_qubits)}b')
-                j_bin = format(j, f'0{len(keep_qubits)}b')
-                
-                # Sum over all possible states of the traced qubits
-                for k in range(2 ** len(trace_qubits)):
-                    k_bin = format(k, f'0{len(trace_qubits)}b')
-                    
-                    # Construct the full basis state indices
-                    full_i = ['0'] * n
-                    full_j = ['0'] * n
-                    
-                    # Fill in the kept qubits
-                    for idx, qubit in enumerate(keep_qubits):
-                        full_i[qubit] = i_bin[idx]
-                        full_j[qubit] = j_bin[idx]
-                    
-                    # Fill in the traced qubits (same for both i and j)
-                    for idx, qubit in enumerate(trace_qubits):
-                        full_i[qubit] = k_bin[idx]
-                        full_j[qubit] = k_bin[idx]
-                    
-                    # Convert binary strings to indices
-                    full_i_idx = int(''.join(full_i), 2)
-                    full_j_idx = int(''.join(full_j), 2)
-                    
-                    # Add to the reduced density matrix
-                    rho_reduced[i, j] += rho[full_i_idx, full_j_idx]
-        
-        return rho_reduced
+        keep = sorted(list(keep_qubits))
+        trace_out = [i for i in range(n) if i not in keep]
+
+        if not trace_out:
+            # Keeping everything — full density matrix
+            return torch.outer(state, state.conj())
+
+        # Reshape state to (2, 2, ..., 2): one axis per qubit
+        state_tensor = state.reshape([2] * n)
+
+        # Permute: kept qubits first, traced qubits last
+        perm = keep + trace_out
+        state_tensor = state_tensor.permute(perm).contiguous()
+
+        # Reshape to (dim_keep, dim_trace)
+        dim_keep = 2 ** len(keep)
+        dim_trace = 2 ** len(trace_out)
+        state_matrix = state_tensor.reshape(dim_keep, dim_trace)
+
+        # ρ_A = Tr_B(|ψ⟩⟨ψ|) = M M†  where M = state_matrix
+        return state_matrix @ state_matrix.conj().t()
 
     def random_parameters(self, scale: float = 1.0) -> torch.Tensor:
-        return scale * torch.randn(self.depth, 2, self.num_qubits, dtype=torch.float64)
+        """Return a flat parameter tensor compatible with evolve_state()."""
+        total_params = (
+            self.params_per_qubit * self.num_qubits
+            + self.params_per_entangler * (self.num_qubits - 1)
+        ) * self.depth
+        return scale * torch.randn(total_params, dtype=torch.float64)
 
     def bell_state(self) -> torch.Tensor:
+        """Return a maximally entangled two-qubit Bell state embedded in num_qubits space.
+        For num_qubits > 2 this is (|00...0⟩ + |11...1⟩)/√2 (a GHZ-like state)."""
         psi = torch.zeros(2 ** self.num_qubits, dtype=torch.complex128)
         psi[0] = psi[-1] = 1 / np.sqrt(2)
         return psi
 
     def ghz_state(self) -> torch.Tensor:
+        """Return the GHZ state (|00...0⟩ + |11...1⟩)/√2 for num_qubits qubits."""
         psi = torch.zeros(2 ** self.num_qubits, dtype=torch.complex128)
         psi[0] = psi[-1] = 1 / np.sqrt(2)
         return psi

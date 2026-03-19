@@ -47,7 +47,7 @@ def create_results_panel():
                                                                 {"label": "Plotly Dark", "value": "plotly_dark"},
                                                                 {"label": "Seaborn", "value": "seaborn"},
                                                             ],
-                                                            value="plotly_white",
+                                                            value="plotly_dark",
                                                         ),
                                                     ],
                                                     width=4,
@@ -130,7 +130,11 @@ def create_results_panel():
                             dbc.Card(
                                 [
                                     dbc.CardHeader(
-                                        html.H5("Loss Curves", className="mb-0")
+                                        html.Div([
+                                            html.H5("Loss Curves", className="mb-0"),
+                                            dbc.Button("↓", id="btn-download-loss", size="sm",
+                                                       color="outline-secondary", title="Download"),
+                                        ], className="d-flex justify-content-between align-items-center"),
                                     ),
                                     dbc.CardBody(
                                         [
@@ -165,7 +169,11 @@ def create_results_panel():
                             dbc.Card(
                                 [
                                     dbc.CardHeader(
-                                        html.H5("Entropy vs Area", className="mb-0")
+                                        html.Div([
+                                            html.H5("Entropy vs Area", className="mb-0"),
+                                            dbc.Button("↓", id="btn-download-entropy-area", size="sm",
+                                                       color="outline-secondary", title="Download"),
+                                        ], className="d-flex justify-content-between align-items-center"),
                                     ),
                                     dbc.CardBody(
                                         [
@@ -194,7 +202,11 @@ def create_results_panel():
                             dbc.Card(
                                 [
                                     dbc.CardHeader(
-                                        html.H5("Entropy Components", className="mb-0")
+                                        html.Div([
+                                            html.H5("Entropy Components", className="mb-0"),
+                                            dbc.Button("↓", id="btn-download-entropy-components", size="sm",
+                                                       color="outline-secondary", title="Download"),
+                                        ], className="d-flex justify-content-between align-items-center"),
                                     ),
                                     dbc.CardBody(
                                         [
@@ -229,7 +241,11 @@ def create_results_panel():
                             dbc.Card(
                                 [
                                     dbc.CardHeader(
-                                        html.H5("Metric Evolution", className="mb-0")
+                                        html.Div([
+                                            html.H5("Metric Evolution", className="mb-0"),
+                                            dbc.Button("↓", id="btn-download-metric", size="sm",
+                                                       color="outline-secondary", title="Download"),
+                                        ], className="d-flex justify-content-between align-items-center"),
                                     ),
                                     dbc.CardBody(
                                         [

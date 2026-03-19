@@ -4,677 +4,883 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>EntropicUnification — Spacetime from Quantum Information</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
 <style>
-  :root {
-    --bg: #050810;
-    --bg2: #080d1a;
-    --surface: #0d1526;
-    --border: rgba(80,140,255,0.15);
-    --accent: #4d9fff;
-    --accent2: #7b4dff;
-    --accent3: #00e5cc;
-    --text: #c8d8f0;
-    --text-dim: #5a7090;
-    --text-bright: #eef4ff;
-    --mono: 'Space Mono', monospace;
-    --serif: 'Libre Baskerville', serif;
-  }
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  html { scroll-behavior: smooth; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--serif);
-    line-height: 1.7;
-    overflow-x: hidden;
-  }
-
-  /* ── CANVAS BACKGROUND ── */
-  #cosmos {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  /* ── LAYOUT ── */
-  .container {
-    position: relative;
-    z-index: 1;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 2rem;
-  }
-
-  /* ── NAV ── */
-  nav {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 100;
-    background: rgba(5,8,16,0.85);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
-    padding: 1rem 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .nav-logo {
-    font-family: var(--mono);
-    font-size: 0.85rem;
-    color: var(--accent);
-    letter-spacing: 0.05em;
-  }
-
-  .nav-links {
-    display: flex;
-    gap: 2rem;
-    list-style: none;
-  }
-
-  .nav-links a {
-    font-family: var(--mono);
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    text-decoration: none;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    transition: color 0.2s;
-  }
-
-  .nav-links a:hover { color: var(--accent); }
-
-  /* ── HERO ── */
-  .hero {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    padding: 8rem 0 4rem;
-  }
-
-  .hero-inner {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 4rem;
-    align-items: center;
-  }
-
-  .hero-tag {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--accent3);
-    margin-bottom: 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .hero-tag::before {
-    content: '';
-    display: block;
-    width: 2rem;
-    height: 1px;
-    background: var(--accent3);
-  }
-
-  h1 {
-    font-family: var(--serif);
-    font-size: clamp(2.2rem, 4vw, 3.2rem);
-    font-weight: 700;
-    color: var(--text-bright);
-    line-height: 1.15;
-    margin-bottom: 1.5rem;
-    letter-spacing: -0.01em;
-  }
-
-  h1 em {
-    font-style: italic;
-    color: var(--accent);
-  }
-
-  .hero-sub {
-    font-size: 1.05rem;
-    color: var(--text-dim);
-    margin-bottom: 2.5rem;
-    line-height: 1.8;
-  }
-
-  .hero-equation {
-    font-family: var(--mono);
-    font-size: 1.1rem;
-    color: var(--accent3);
-    background: rgba(0,229,204,0.06);
-    border: 1px solid rgba(0,229,204,0.2);
-    border-radius: 4px;
-    padding: 1rem 1.5rem;
-    margin-bottom: 2.5rem;
-    letter-spacing: 0.02em;
-  }
-
-  .btn-row {
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-  }
-
-  .btn {
-    font-family: var(--mono);
-    font-size: 0.78rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    text-decoration: none;
-    padding: 0.75rem 1.75rem;
-    border-radius: 3px;
-    transition: all 0.2s;
-    cursor: pointer;
-    border: none;
-    display: inline-block;
-  }
-
-  .btn-primary {
-    background: var(--accent);
-    color: var(--bg);
-    font-weight: 700;
-  }
-
-  .btn-primary:hover {
-    background: #7bb8ff;
-    transform: translateY(-1px);
-  }
-
-  .btn-ghost {
-    background: transparent;
-    color: var(--accent);
-    border: 1px solid rgba(77,159,255,0.4);
-  }
-
-  .btn-ghost:hover {
-    border-color: var(--accent);
-    background: rgba(77,159,255,0.08);
-    transform: translateY(-1px);
-  }
-
-  /* ── HERO DIAGRAM ── */
-  .hero-diagram {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .pipeline-viz {
-    width: 100%;
-    max-width: 420px;
-  }
-
-  /* ── SECTION HEADER ── */
-  .section {
-    padding: 6rem 0;
-    border-top: 1px solid var(--border);
-  }
-
-  .section-label {
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin-bottom: 0.75rem;
-  }
-
-  h2 {
-    font-family: var(--serif);
-    font-size: clamp(1.6rem, 3vw, 2.2rem);
-    color: var(--text-bright);
-    font-weight: 700;
-    margin-bottom: 1rem;
-    line-height: 1.2;
-  }
-
-  .section-intro {
-    color: var(--text-dim);
-    max-width: 600px;
-    margin-bottom: 3.5rem;
-    font-size: 1rem;
-  }
-
-  /* ── RESULTS GRID ── */
-  .results-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.5rem;
-    margin-bottom: 3rem;
-  }
-
-  .result-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1.75rem;
-    transition: border-color 0.2s, transform 0.2s;
-  }
-
-  .result-card:hover {
-    border-color: rgba(77,159,255,0.4);
-    transform: translateY(-2px);
-  }
-
-  .result-icon {
-    font-size: 1.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .result-card h3 {
-    font-family: var(--mono);
-    font-size: 0.85rem;
-    color: var(--accent);
-    letter-spacing: 0.05em;
-    margin-bottom: 0.5rem;
-    text-transform: uppercase;
-  }
-
-  .result-card p {
-    font-size: 0.88rem;
-    color: var(--text-dim);
-    line-height: 1.6;
-  }
-
-  .result-card .metric {
-    font-family: var(--mono);
-    font-size: 1.4rem;
-    color: var(--accent3);
-    margin: 0.5rem 0;
-  }
-
-  /* ── THEORY SECTION ── */
-  .theory-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 3rem;
-    align-items: start;
-  }
-
-  .theory-block {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 2rem;
-  }
-
-  .theory-block h3 {
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--accent2);
-    margin-bottom: 1rem;
-  }
-
-  .theory-block .eq {
-    font-family: var(--mono);
-    font-size: 0.85rem;
-    color: var(--accent3);
-    background: rgba(0,229,204,0.05);
-    border-left: 2px solid var(--accent3);
-    padding: 0.75rem 1rem;
-    margin: 1rem 0;
-    line-height: 1.8;
-  }
-
-  .theory-block p {
-    font-size: 0.9rem;
-    color: var(--text-dim);
-    line-height: 1.7;
-  }
-
-  .badge {
-    display: inline-block;
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0.25rem 0.6rem;
-    border-radius: 2px;
-    margin-left: 0.5rem;
-    vertical-align: middle;
-  }
-
-  .badge-derived { background: rgba(0,229,204,0.15); color: var(--accent3); }
-  .badge-new { background: rgba(77,159,255,0.15); color: var(--accent); }
-
-  /* ── FORMULATIONS TABLE ── */
-  .formulations {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-    margin: 2rem 0;
-  }
-
-  .formulations table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .formulations th {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-dim);
-    padding: 1rem 1.5rem;
-    text-align: left;
-    background: rgba(77,159,255,0.05);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .formulations td {
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    padding: 0.9rem 1.5rem;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-    vertical-align: top;
-  }
-
-  .formulations tr:last-child td { border-bottom: none; }
-  .formulations tr:hover td { background: rgba(77,159,255,0.03); }
-
-  .status-yes { color: var(--accent3); }
-  .status-no { color: var(--text-dim); }
-  .status-default { color: var(--accent); }
-
-  /* ── HYPOTHESES ── */
-  .hypotheses {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.5rem;
-  }
-
-  .hypothesis {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 1.75rem;
-    position: relative;
-  }
-
-  .hypothesis .h-label {
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin-bottom: 0.5rem;
-  }
-
-  .hypothesis h3 {
-    font-size: 0.95rem;
-    color: var(--text-bright);
-    margin-bottom: 0.75rem;
-    font-weight: 700;
-  }
-
-  .hypothesis p {
-    font-size: 0.85rem;
-    color: var(--text-dim);
-    line-height: 1.6;
-  }
-
-  .h-status {
-    position: absolute;
-    top: 1.25rem;
-    right: 1.25rem;
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    padding: 0.2rem 0.5rem;
-    border-radius: 2px;
-  }
-
-  .h-confirmed { background: rgba(0,229,204,0.12); color: var(--accent3); }
-  .h-active { background: rgba(123,77,255,0.15); color: #a87bff; }
-
-  /* ── QUICKSTART ── */
-  .quickstart-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-  }
-
-  .code-block {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    overflow: hidden;
-  }
-
-  .code-block-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem 1.25rem;
-    background: rgba(77,159,255,0.06);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .code-block-title {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-
-  .code-block pre {
-    padding: 1.25rem;
-    font-family: var(--mono);
-    font-size: 0.78rem;
-    color: var(--text);
-    line-height: 1.7;
-    overflow-x: auto;
-    white-space: pre;
-  }
-
-  .code-block .kw { color: var(--accent2); }
-  .code-block .str { color: var(--accent3); }
-  .code-block .cm { color: var(--text-dim); }
-  .code-block .fn { color: var(--accent); }
-
-  /* ── REFERENCES ── */
-  .refs-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-  }
-
-  .ref-item {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1rem 1.25rem;
-    font-size: 0.83rem;
-  }
-
-  .ref-item .ref-authors {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    color: var(--accent);
-    margin-bottom: 0.25rem;
-    letter-spacing: 0.03em;
-  }
-
-  .ref-item .ref-title {
-    color: var(--text-bright);
-    margin-bottom: 0.25rem;
-    line-height: 1.4;
-    font-weight: 700;
-  }
-
-  .ref-item .ref-venue {
-    color: var(--text-dim);
-    font-style: italic;
-    font-size: 0.8rem;
-  }
-
-  /* ── NIS SECTION ── */
-  .nis-banner {
-    background: linear-gradient(135deg, rgba(77,159,255,0.08), rgba(123,77,255,0.08));
-    border: 1px solid rgba(123,77,255,0.25);
-    border-radius: 8px;
-    padding: 2.5rem;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 2rem;
-    align-items: center;
-  }
-
-  .nis-banner h3 {
-    font-family: var(--serif);
-    font-size: 1.3rem;
-    color: var(--text-bright);
-    margin-bottom: 0.75rem;
-  }
-
-  .nis-banner p {
-    color: var(--text-dim);
-    font-size: 0.92rem;
-    line-height: 1.7;
-  }
-
-  /* ── 3D VISUALIZATION ── */
-  .viz3d-section { padding: 5rem 0; }
-
-  .viz3d-tabs {
-    display: flex;
-    gap: 0;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 0;
-  }
-
-  .viz3d-tab {
-    font-family: var(--mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    padding: 0.6rem 1.4rem;
-    cursor: pointer;
-    transition: color 0.2s, border-color 0.2s;
-  }
-
-  .viz3d-tab:hover { color: var(--accent3); }
-
-  .viz3d-tab.active {
-    color: var(--accent3);
-    border-bottom-color: var(--accent3);
-  }
-
-  .viz3d-panel { display: none; }
-  .viz3d-panel.active { display: block; }
-
-  .viz3d-plot {
-    width: 100%;
-    height: 500px;
-    border-radius: 6px;
-    overflow: hidden;
-    background: var(--surface);
-    border: 1px solid var(--border);
-  }
-
-  .viz3d-caption {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    color: var(--text-dim);
-    margin-top: 1rem;
-    text-align: center;
-    letter-spacing: 0.03em;
-  }
-
-  .viz3d-caption strong { color: #FAC775; }
-
-  /* ── FOOTER ── */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 2.5rem 0;
-    margin-top: 4rem;
-  }
-
-  .footer-inner {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .footer-logo {
-    font-family: var(--mono);
-    font-size: 0.78rem;
-    color: var(--text-dim);
-  }
-
-  .footer-logo span { color: var(--accent); }
-
-  .footer-links {
-    display: flex;
-    gap: 1.5rem;
-    list-style: none;
-  }
-
-  .footer-links a {
-    font-family: var(--mono);
-    font-size: 0.72rem;
-    color: var(--text-dim);
-    text-decoration: none;
-    letter-spacing: 0.05em;
-    transition: color 0.2s;
-  }
-
-  .footer-links a:hover { color: var(--accent); }
-
-  /* ── RESPONSIVE ── */
-  @media (max-width: 768px) {
-    .hero-inner, .theory-grid, .quickstart-grid,
-    .refs-grid, .nis-banner { grid-template-columns: 1fr; }
-    .results-grid, .hypotheses { grid-template-columns: 1fr; }
-    .hero-diagram { display: none; }
-  }
-
-  /* ── SCROLL ANIMATIONS ── */
-  .fade-in {
-    opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.6s ease, transform 0.6s ease;
-  }
-
-  .fade-in.visible {
-    opacity: 1;
-    transform: none;
-  }
+/* ═══════════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════════ */
+:root {
+  --bg:      #030609;
+  --bg2:     #060b12;
+  --glass:   rgba(6,11,22,0.55);
+  --glass2:  rgba(10,18,35,0.70);
+  --border:  rgba(77,159,255,0.12);
+  --border2: rgba(77,159,255,0.25);
+  --accent:  #4d9fff;
+  --accent2: #7b4dff;
+  --teal:    #1D9E75;
+  --amber:   #FAC775;
+  --coral:   #993C1D;
+  --text:    #b8cde8;
+  --dim:     #4a6080;
+  --bright:  #eef4ff;
+  --mono:    'Space Mono', monospace;
+  --sans:    'Inter', sans-serif;
+  --radius:  10px;
+  --glow-b:  0 0 40px rgba(77,159,255,0.15);
+  --glow-t:  0 0 40px rgba(29,158,117,0.2);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-weight: 400;
+  line-height: 1.7;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ═══════════════════════════════════════════
+   BACKGROUND LAYERS
+═══════════════════════════════════════════ */
+#cosmos {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Nebula orbs */
+.nebula {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(90px);
+  opacity: 0.18;
+  animation: drift 28s ease-in-out infinite alternate;
+}
+.nebula-1 { width: 600px; height: 600px; background: radial-gradient(circle, #1D9E75, transparent 70%); top: -10%; left: -8%; animation-duration: 32s; }
+.nebula-2 { width: 500px; height: 500px; background: radial-gradient(circle, #4d9fff, transparent 70%); top: 30%; right: -10%; animation-duration: 40s; animation-delay: -12s; }
+.nebula-3 { width: 400px; height: 400px; background: radial-gradient(circle, #7b4dff, transparent 70%); bottom: 10%; left: 20%; animation-duration: 36s; animation-delay: -6s; }
+
+@keyframes drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(40px, 30px) scale(1.1); }
+}
+
+/* Scroll progress bar */
+#progress-bar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  width: 0%;
+  background: linear-gradient(90deg, var(--teal), var(--accent), var(--amber));
+  z-index: 9999;
+  transition: width 0.1s linear;
+}
+
+/* ═══════════════════════════════════════════
+   LAYOUT
+═══════════════════════════════════════════ */
+.container {
+  position: relative;
+  z-index: 1;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* ═══════════════════════════════════════════
+   NAV
+═══════════════════════════════════════════ */
+nav {
+  position: fixed;
+  top: 2px; /* sits just below progress bar */
+  left: 0; right: 0;
+  z-index: 1000;
+  background: rgba(3,6,9,0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+  padding: 0.9rem 2.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.3s;
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.nav-logo .v-tag {
+  font-size: 0.68rem;
+  color: var(--dim);
+  background: rgba(77,159,255,0.08);
+  border: 1px solid rgba(77,159,255,0.15);
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 2.2rem;
+  list-style: none;
+  align-items: center;
+}
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--dim);
+  text-decoration: none;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: color 0.2s;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid transparent;
+}
+.nav-links a:hover,
+.nav-links a.active { color: var(--accent); border-bottom-color: rgba(77,159,255,0.4); }
+.nav-links .nav-cta a {
+  color: var(--bg);
+  background: var(--accent);
+  padding: 0.4rem 1rem;
+  border-radius: 4px;
+  border-bottom: none;
+  font-weight: 700;
+}
+.nav-links .nav-cta a:hover { background: #7bb8ff; }
+
+/* Hamburger */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  cursor: pointer;
+  padding: 4px;
+}
+.nav-hamburger span {
+  display: block;
+  width: 22px; height: 2px;
+  background: var(--text);
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+.nav-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-hamburger.open span:nth-child(2) { opacity: 0; }
+.nav-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+@media (max-width: 768px) {
+  .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; gap: 0; background: rgba(3,6,9,0.97);
+    border-bottom: 1px solid var(--border); padding: 0; }
+  .nav-links.open { display: flex; }
+  .nav-links li { border-bottom: 1px solid var(--border); }
+  .nav-links a { display: block; padding: 1rem 2.5rem; }
+  .nav-hamburger { display: flex; }
+}
+
+/* ═══════════════════════════════════════════
+   HERO
+═══════════════════════════════════════════ */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: 8rem 0 5rem;
+}
+.hero-inner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5rem;
+  align-items: center;
+}
+.hero-tag {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.hero-tag::before {
+  content: '';
+  display: block;
+  width: 2rem; height: 1px;
+  background: var(--teal);
+  box-shadow: 0 0 8px rgba(29,158,117,0.6);
+}
+
+h1 {
+  font-family: var(--sans);
+  font-size: clamp(2.4rem, 4.5vw, 3.6rem);
+  font-weight: 700;
+  color: var(--bright);
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.02em;
+}
+h1 em { font-style: italic; color: var(--accent); font-weight: 300; }
+
+.hero-sub {
+  font-size: 1.05rem;
+  color: var(--dim);
+  margin-bottom: 2.5rem;
+  line-height: 1.8;
+  font-weight: 300;
+  max-width: 480px;
+}
+
+/* Glowing equation block */
+.hero-equation {
+  font-family: var(--mono);
+  font-size: 1.15rem;
+  color: var(--teal);
+  background: rgba(29,158,117,0.05);
+  border: 1px solid rgba(29,158,117,0.25);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.5rem;
+  margin-bottom: 2.5rem;
+  letter-spacing: 0.03em;
+  position: relative;
+  animation: eq-pulse 3.5s ease-in-out infinite;
+}
+.hero-equation::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: var(--radius);
+  background: linear-gradient(120deg, rgba(29,158,117,0.3), rgba(77,159,255,0.15), rgba(29,158,117,0.3));
+  z-index: -1;
+  animation: eq-border 4s linear infinite;
+  background-size: 200%;
+}
+@keyframes eq-pulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(29,158,117,0.1), inset 0 0 20px rgba(29,158,117,0.03); }
+  50%       { box-shadow: 0 0 35px rgba(29,158,117,0.25), inset 0 0 30px rgba(29,158,117,0.06); }
+}
+@keyframes eq-border {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.btn-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+.btn {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 0.8rem 1.8rem;
+  border-radius: 6px;
+  transition: all 0.25s;
+  cursor: pointer;
+  border: none;
+  display: inline-block;
+  font-weight: 700;
+}
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+.btn-primary:hover {
+  background: #7bb8ff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(77,159,255,0.35);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(77,159,255,0.3);
+}
+.btn-ghost:hover {
+  border-color: var(--accent);
+  background: rgba(77,159,255,0.08);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(77,159,255,0.12);
+}
+
+/* Hero SVG diagram */
+.hero-diagram { display: flex; justify-content: center; align-items: center; }
+.pipeline-viz { width: 100%; max-width: 420px; }
+
+/* ═══════════════════════════════════════════
+   GLASS CARD MIXIN
+═══════════════════════════════════════════ */
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* ═══════════════════════════════════════════
+   SECTIONS
+═══════════════════════════════════════════ */
+.section { padding: 7rem 0; }
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 0.75rem;
+}
+h2 {
+  font-family: var(--sans);
+  font-size: clamp(1.8rem, 3.2vw, 2.5rem);
+  color: var(--bright);
+  font-weight: 700;
+  margin-bottom: 1rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.section-intro {
+  color: var(--dim);
+  max-width: 600px;
+  margin-bottom: 4rem;
+  font-size: 0.98rem;
+  font-weight: 300;
+  line-height: 1.8;
+}
+
+/* ═══════════════════════════════════════════
+   RESULTS GRID
+═══════════════════════════════════════════ */
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 3rem;
+}
+
+.result-card {
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+.result-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(77,159,255,0.4), transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.result-card:hover {
+  border-color: rgba(77,159,255,0.35);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(77,159,255,0.1), var(--glow-b);
+}
+.result-card:hover::before { opacity: 1; }
+
+.result-icon {
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  opacity: 0.7;
+}
+.result-card h3 {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+.result-card p {
+  font-size: 0.85rem;
+  color: var(--dim);
+  line-height: 1.65;
+  font-weight: 300;
+}
+.result-card .metric {
+  font-family: var(--mono);
+  font-size: 1.45rem;
+  color: var(--teal);
+  margin: 0.5rem 0 0.75rem;
+  text-shadow: 0 0 20px rgba(29,158,117,0.5);
+  letter-spacing: -0.01em;
+}
+
+/* ═══════════════════════════════════════════
+   THEORY
+═══════════════════════════════════════════ */
+.theory-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+.theory-block {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  transition: border-color 0.3s;
+}
+.theory-block:hover { border-color: rgba(123,77,255,0.3); }
+.theory-block h3 {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent2);
+  margin-bottom: 1.25rem;
+}
+.theory-block .eq {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--teal);
+  background: rgba(29,158,117,0.05);
+  border-left: 2px solid rgba(29,158,117,0.5);
+  padding: 0.8rem 1rem;
+  margin: 1rem 0;
+  line-height: 1.8;
+  border-radius: 0 4px 4px 0;
+}
+.theory-block p {
+  font-size: 0.88rem;
+  color: var(--dim);
+  line-height: 1.7;
+  font-weight: 300;
+}
+.badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
+  border-radius: 3px;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+.badge-derived { background: rgba(29,158,117,0.15); color: var(--teal); border: 1px solid rgba(29,158,117,0.25); }
+.badge-new     { background: rgba(77,159,255,0.12); color: var(--accent); border: 1px solid rgba(77,159,255,0.2); }
+
+/* ═══════════════════════════════════════════
+   FORMULATIONS TABLE
+═══════════════════════════════════════════ */
+.formulations {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin: 2.5rem 0;
+}
+.formulations table { width: 100%; border-collapse: collapse; }
+.formulations th {
+  font-family: var(--mono);
+  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--dim);
+  padding: 1rem 1.5rem;
+  text-align: left;
+  background: rgba(77,159,255,0.04);
+  border-bottom: 1px solid var(--border);
+}
+.formulations td {
+  font-family: var(--mono);
+  font-size: 0.79rem;
+  padding: 0.9rem 1.5rem;
+  border-bottom: 1px solid rgba(77,159,255,0.06);
+  color: var(--text);
+  vertical-align: top;
+}
+.formulations tr:last-child td { border-bottom: none; }
+.formulations tr:hover td { background: rgba(77,159,255,0.025); }
+.status-yes { color: var(--teal); }
+.status-no  { color: var(--dim); }
+.status-default { color: var(--accent); }
+
+/* ═══════════════════════════════════════════
+   HYPOTHESES
+═══════════════════════════════════════════ */
+.hypotheses {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+.hypothesis {
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.75rem;
+  position: relative;
+  transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+}
+.hypothesis:hover {
+  border-color: rgba(77,159,255,0.3);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+}
+.hypothesis .h-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 0.5rem;
+}
+.hypothesis h3 {
+  font-size: 0.97rem;
+  color: var(--bright);
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+.hypothesis p {
+  font-size: 0.84rem;
+  color: var(--dim);
+  line-height: 1.65;
+  font-weight: 300;
+}
+.h-status {
+  position: absolute;
+  top: 1.25rem; right: 1.25rem;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 3px;
+}
+.h-confirmed { background: rgba(29,158,117,0.12); color: var(--teal); border: 1px solid rgba(29,158,117,0.2); }
+.h-active    { background: rgba(250,199,117,0.1);  color: var(--amber); border: 1px solid rgba(250,199,117,0.2); }
+
+/* ═══════════════════════════════════════════
+   3D VIZ
+═══════════════════════════════════════════ */
+.viz3d-section { padding: 6rem 0; }
+
+.viz3d-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.viz3d-tabs::-webkit-scrollbar { display: none; }
+
+.viz3d-tab {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.viz3d-tab:hover { color: var(--teal); }
+.viz3d-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
+
+.viz3d-panel { display: none; }
+.viz3d-panel.active { display: block; }
+
+.viz3d-plot {
+  width: 100%;
+  height: 520px;
+  border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden;
+  background: var(--glass2);
+  border: 1px solid var(--border);
+  border-top: none;
+  position: relative;
+}
+.viz3d-plot .plot-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--dim);
+  letter-spacing: 0.1em;
+}
+
+.viz3d-caption {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--dim);
+  margin-top: 1.2rem;
+  text-align: center;
+  letter-spacing: 0.03em;
+  line-height: 1.7;
+}
+.viz3d-caption strong { color: var(--amber); }
+
+/* ═══════════════════════════════════════════
+   CODE BLOCKS
+═══════════════════════════════════════════ */
+.quickstart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+.code-block {
+  background: var(--glass2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.code-block:hover { border-color: var(--border2); }
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.2rem;
+  background: rgba(77,159,255,0.04);
+  border-bottom: 1px solid var(--border);
+}
+.code-block-title {
+  font-family: var(--mono);
+  font-size: 0.67rem;
+  color: var(--dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.code-copy {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--dim);
+  background: none;
+  border: 1px solid rgba(77,159,255,0.15);
+  border-radius: 3px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: color 0.2s, border-color 0.2s;
+}
+.code-copy:hover { color: var(--accent); border-color: rgba(77,159,255,0.35); }
+.code-copy.copied { color: var(--teal); border-color: rgba(29,158,117,0.35); }
+
+.code-block pre {
+  padding: 1.2rem 1.4rem;
+  font-family: var(--mono);
+  font-size: 0.77rem;
+  color: var(--text);
+  line-height: 1.75;
+  overflow-x: auto;
+  white-space: pre;
+}
+.code-block .kw  { color: var(--accent2); }
+.code-block .str { color: var(--teal); }
+.code-block .cm  { color: var(--dim); }
+.code-block .fn  { color: var(--accent); }
+
+/* ═══════════════════════════════════════════
+   REFERENCES
+═══════════════════════════════════════════ */
+.refs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+.ref-item {
+  background: var(--glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.4rem;
+  font-size: 0.83rem;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.ref-item:hover { border-color: var(--border2); transform: translateY(-2px); }
+.ref-item .ref-authors { font-family: var(--mono); font-size: 0.68rem; color: var(--accent); margin-bottom: 0.3rem; }
+.ref-item .ref-title   { color: var(--bright); margin-bottom: 0.25rem; line-height: 1.4; font-weight: 500; font-size: 0.85rem; }
+.ref-item .ref-venue   { color: var(--dim); font-style: italic; font-size: 0.78rem; }
+
+/* ═══════════════════════════════════════════
+   NIS BANNER
+═══════════════════════════════════════════ */
+.nis-banner {
+  background: linear-gradient(135deg, rgba(77,159,255,0.06), rgba(123,77,255,0.06));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(123,77,255,0.2);
+  border-radius: var(--radius);
+  padding: 2.5rem 3rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2rem;
+  align-items: center;
+  transition: border-color 0.3s;
+}
+.nis-banner:hover { border-color: rgba(123,77,255,0.4); }
+.nis-banner h3 { font-size: 1.25rem; color: var(--bright); margin-bottom: 0.75rem; font-weight: 600; }
+.nis-banner p  { color: var(--dim); font-size: 0.9rem; line-height: 1.75; font-weight: 300; }
+
+/* ═══════════════════════════════════════════
+   FOOTER
+═══════════════════════════════════════════ */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2.5rem 0;
+  margin-top: 3rem;
+}
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.footer-logo { font-family: var(--mono); font-size: 0.76rem; color: var(--dim); }
+.footer-logo span { color: var(--accent); }
+.footer-links { display: flex; gap: 1.5rem; list-style: none; }
+.footer-links a { font-family: var(--mono); font-size: 0.7rem; color: var(--dim); text-decoration: none; letter-spacing: 0.05em; transition: color 0.2s; }
+.footer-links a:hover { color: var(--accent); }
+
+/* ═══════════════════════════════════════════
+   SCROLL ANIMATIONS
+═══════════════════════════════════════════ */
+.fade-in {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.fade-in.visible { opacity: 1; transform: none; }
+
+/* Stagger children */
+.fade-in:nth-child(2) { transition-delay: 0.1s; }
+.fade-in:nth-child(3) { transition-delay: 0.2s; }
+
+/* ═══════════════════════════════════════════
+   DIVIDERS
+═══════════════════════════════════════════ */
+.section-divider {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  margin: 0;
+}
+
+/* ═══════════════════════════════════════════
+   STATS BAR
+═══════════════════════════════════════════ */
+.stats-bar {
+  display: flex;
+  gap: 0;
+  justify-content: space-around;
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem 1rem;
+  margin-bottom: 5rem;
+}
+.stat-item {
+  text-align: center;
+  padding: 0 2rem;
+  border-right: 1px solid var(--border);
+}
+.stat-item:last-child { border-right: none; }
+.stat-value {
+  font-family: var(--mono);
+  font-size: 1.7rem;
+  color: var(--amber);
+  text-shadow: 0 0 25px rgba(250,199,117,0.4);
+  display: block;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.stat-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--dim);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-top: 0.3rem;
+  display: block;
+}
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .results-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .hero-inner, .theory-grid, .quickstart-grid,
+  .refs-grid, .nis-banner { grid-template-columns: 1fr; }
+  .hypotheses { grid-template-columns: 1fr; }
+  .hero-diagram { display: none; }
+  .results-grid { grid-template-columns: 1fr; }
+  .stats-bar { flex-direction: column; gap: 1.5rem; }
+  .stat-item { border-right: none; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; }
+  .stat-item:last-child { border-bottom: none; }
+  .footer-inner { flex-direction: column; text-align: center; }
+  .hero { padding: 7rem 0 4rem; }
+}
 </style>
 </head>
 <body>
 
+<!-- Progress bar -->
+<div id="progress-bar"></div>
+
+<!-- Nebula background blobs -->
+<div class="nebula nebula-1"></div>
+<div class="nebula nebula-2"></div>
+<div class="nebula nebula-3"></div>
+
 <canvas id="cosmos"></canvas>
 
-<nav>
-  <div class="nav-logo">EntropicUnification <span style="color:var(--text-dim)">v1.2</span></div>
-  <ul class="nav-links">
+<nav id="nav">
+  <div class="nav-logo">
+    EntropicUnification
+    <span class="v-tag">v1.2</span>
+  </div>
+  <ul class="nav-links" id="nav-links">
     <li><a href="#results">Results</a></li>
     <li><a href="#viz3d">3D Plots</a></li>
     <li><a href="#theory">Theory</a></li>
     <li><a href="#hypotheses">Experiments</a></li>
     <li><a href="#quickstart">Quickstart</a></li>
-    <li><a href="https://github.com/Organica-Ai-Solutions/EntropicUnification">GitHub ↗</a></li>
+    <li class="nav-cta"><a href="https://github.com/Organica-Ai-Solutions/EntropicUnification">GitHub ↗</a></li>
   </ul>
+  <div class="nav-hamburger" id="hamburger" onclick="toggleMenu()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </div>
 </nav>
 
 <!-- ═══ HERO ═══ -->
@@ -699,64 +905,87 @@
         <svg class="pipeline-viz" viewBox="0 0 420 480" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <radialGradient id="gq" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#4d9fff" stop-opacity="0.3"/>
+              <stop offset="0%" stop-color="#4d9fff" stop-opacity="0.35"/>
               <stop offset="100%" stop-color="#4d9fff" stop-opacity="0"/>
             </radialGradient>
             <radialGradient id="gt" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#00e5cc" stop-opacity="0.3"/>
-              <stop offset="100%" stop-color="#00e5cc" stop-opacity="0"/>
+              <stop offset="0%" stop-color="#1D9E75" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#1D9E75" stop-opacity="0"/>
             </radialGradient>
             <radialGradient id="gg" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#7b4dff" stop-opacity="0.3"/>
+              <stop offset="0%" stop-color="#7b4dff" stop-opacity="0.35"/>
               <stop offset="100%" stop-color="#7b4dff" stop-opacity="0"/>
             </radialGradient>
-            <filter id="glow">
-              <feGaussianBlur stdDeviation="3" result="blur"/>
+            <filter id="glow-svg">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
               <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
             </filter>
           </defs>
-
           <!-- Node 1: Quantum -->
-          <circle cx="210" cy="70" r="55" fill="url(#gq)"/>
-          <circle cx="210" cy="70" r="40" fill="#080d1a" stroke="#4d9fff" stroke-width="1.5"/>
+          <circle cx="210" cy="70" r="58" fill="url(#gq)"/>
+          <circle cx="210" cy="70" r="42" fill="#060b12" stroke="#4d9fff" stroke-width="1.5" filter="url(#glow-svg)"/>
           <text x="210" y="65" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#4d9fff" letter-spacing="1">QUANTUM</text>
           <text x="210" y="80" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#4d9fff" letter-spacing="1">CIRCUIT</text>
-          <text x="210" y="97" text-anchor="middle" font-family="Space Mono" font-size="8" fill="rgba(77,159,255,0.5)">|ψ⟩, S_ent</text>
-
+          <text x="210" y="97" text-anchor="middle" font-family="Space Mono" font-size="8" fill="rgba(77,159,255,0.45)">|ψ⟩, S_ent</text>
           <!-- Arrow 1→2 -->
-          <line x1="210" y1="115" x2="210" y2="160" stroke="#4d9fff" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
-          <polygon points="210,168 204,156 216,156" fill="#4d9fff" opacity="0.6"/>
-          <text x="230" y="147" font-family="Space Mono" font-size="8" fill="rgba(77,159,255,0.5)">∇S_ent</text>
-
+          <line x1="210" y1="115" x2="210" y2="162" stroke="#4d9fff" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+          <polygon points="210,170 204,158 216,158" fill="#4d9fff" opacity="0.5"/>
+          <text x="228" y="150" font-family="Space Mono" font-size="8" fill="rgba(77,159,255,0.4)">∇S_ent</text>
           <!-- Node 2: Thermodynamics -->
-          <circle cx="210" cy="220" r="55" fill="url(#gt)"/>
-          <circle cx="210" cy="220" r="40" fill="#080d1a" stroke="#00e5cc" stroke-width="1.5"/>
-          <text x="210" y="212" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#00e5cc" letter-spacing="1">THERMO-</text>
-          <text x="210" y="227" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#00e5cc" letter-spacing="1">DYNAMICS</text>
-          <text x="210" y="244" text-anchor="middle" font-family="Space Mono" font-size="8" fill="rgba(0,229,204,0.5)">T_μν, ΔF</text>
-
+          <circle cx="210" cy="222" r="58" fill="url(#gt)"/>
+          <circle cx="210" cy="222" r="42" fill="#060b12" stroke="#1D9E75" stroke-width="1.5" filter="url(#glow-svg)"/>
+          <text x="210" y="214" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#1D9E75" letter-spacing="1">THERMO-</text>
+          <text x="210" y="229" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#1D9E75" letter-spacing="1">DYNAMICS</text>
+          <text x="210" y="246" text-anchor="middle" font-family="Space Mono" font-size="8" fill="rgba(29,158,117,0.45)">T_μν, ΔF</text>
           <!-- Arrow 2→3 -->
-          <line x1="210" y1="265" x2="210" y2="310" stroke="#00e5cc" stroke-width="1" stroke-dasharray="4 3" opacity="0.6"/>
-          <polygon points="210,318 204,306 216,306" fill="#00e5cc" opacity="0.6"/>
-          <text x="230" y="297" font-family="Space Mono" font-size="8" fill="rgba(0,229,204,0.5)">G_μν</text>
-
+          <line x1="210" y1="267" x2="210" y2="313" stroke="#1D9E75" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+          <polygon points="210,320 204,309 216,309" fill="#1D9E75" opacity="0.5"/>
+          <text x="228" y="300" font-family="Space Mono" font-size="8" fill="rgba(29,158,117,0.4)">G_μν</text>
           <!-- Node 3: Geometry -->
-          <circle cx="210" cy="370" r="55" fill="url(#gg)"/>
-          <circle cx="210" cy="370" r="40" fill="#080d1a" stroke="#7b4dff" stroke-width="1.5"/>
-          <text x="210" y="362" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#a87bff" letter-spacing="1">SPACETIME</text>
-          <text x="210" y="377" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#a87bff" letter-spacing="1">GEOMETRY</text>
-          <text x="210" y="394" text-anchor="middle" font-family="Space Mono" font-size="8" fill="rgba(123,77,255,0.5)">g_μν learned</text>
-
+          <circle cx="210" cy="373" r="58" fill="url(#gg)"/>
+          <circle cx="210" cy="373" r="42" fill="#060b12" stroke="#7b4dff" stroke-width="1.5" filter="url(#glow-svg)"/>
+          <text x="210" y="365" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#a87bff" letter-spacing="1">SPACETIME</text>
+          <text x="210" y="380" text-anchor="middle" font-family="Space Mono" font-size="9" fill="#a87bff" letter-spacing="1">GEOMETRY</text>
+          <text x="210" y="397" text-anchor="middle" font-family="Space Mono" font-size="8" fill="rgba(123,77,255,0.45)">g_μν learned</text>
           <!-- Feedback arrow -->
-          <path d="M 258 370 Q 340 370 340 220 Q 340 70 258 70" stroke="rgba(255,255,255,0.08)" stroke-width="1" stroke-dasharray="3 4" fill="none"/>
-          <text x="348" y="225" font-family="Space Mono" font-size="7" fill="rgba(255,255,255,0.2)" text-anchor="middle">autograd</text>
+          <path d="M 260 373 Q 345 373 345 222 Q 345 70 260 70" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="3 4" fill="none"/>
+          <text x="354" y="227" font-family="Space Mono" font-size="7" fill="rgba(255,255,255,0.18)" text-anchor="middle">autograd</text>
         </svg>
       </div>
     </div>
   </div>
 </section>
 
+<!-- ═══ STATS BAR ═══ -->
+<section style="padding: 0 0 2rem; position: relative; z-index:1;">
+  <div class="container">
+    <div class="stats-bar fade-in">
+      <div class="stat-item">
+        <span class="stat-value" data-count="0.784" data-decimals="3">0.000</span>
+        <span class="stat-label">Pearson r(g_tt)</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" data-count="0.448" data-decimals="3">0.000</span>
+        <span class="stat-label">Fitted r_s</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" data-count="1500" data-decimals="0">0</span>
+        <span class="stat-label">Max Iterations</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" data-count="3" data-decimals="0">0</span>
+        <span class="stat-label">Formulations</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value" data-count="0.645" data-decimals="3">0.000</span>
+        <span class="stat-label">Crossover S_ent</span>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ RESULTS ═══ -->
+<hr class="section-divider"/>
 <section class="section" id="results">
   <div class="container">
     <div class="fade-in">
@@ -781,7 +1010,7 @@
         <div class="result-icon">◎</div>
         <h3>Schwarzschild Recovery</h3>
         <div class="metric">Pearson 0.784</div>
-        <p>Bell state optimized over 64-pt lattice for 1000 iterations. g<sub>tt</sub> deepens to −0.347 near source vs −1.136 far field. Fitted r<sub>s</sub> = 0.448, r<sub>s</sub>/S<sub>Bell</sub> = 0.647. 2/3 qualitative checks passed (GTX 1660 Ti, Mar 2026).</p>
+        <p>Bell state optimized over 64-pt lattice for 1000 iterations. g<sub>tt</sub> deepens to −0.347 near source vs −1.136 far field. Fitted r<sub>s</sub> = 0.448. 2/3 qualitative checks passed.</p>
       </div>
       <div class="result-card">
         <div class="result-icon">∿</div>
@@ -801,10 +1030,10 @@
         <div class="metric">∫√g_rr dr</div>
         <p>Holographic entropy now computed via proper Ryu-Takayanagi geodesic integral on the lattice. Previously a proxy — now the actual formula.</p>
       </div>
-      <div class="result-card">
+      <div class="result-card" style="grid-column: span 3">
         <div class="result-icon">∿</div>
         <h3>Entanglement Scaling</h3>
-        <div class="metric">Non-linear</div>
+        <div class="metric">Non-linear confirmed</div>
         <p>r<sub>s</sub> vs S<sub>ent</sub> sweep across 4 states. Non-linear confirmed at 1000 iters (R² = −2.23). Ratio decreases 2.91 → 0.97. Crossover r<sub>s</sub> = S<sub>ent</sub> at S ≈ 0.645. Higher entanglement → more compact geometry.</p>
       </div>
     </div>
@@ -812,6 +1041,7 @@
 </section>
 
 <!-- ═══ 3D VISUALIZATION ═══ -->
+<hr class="section-divider"/>
 <section class="section viz3d-section" id="viz3d">
   <div class="container">
     <div class="fade-in">
@@ -819,7 +1049,6 @@
       <h2>See the Geometry</h2>
       <p class="section-intro">Drag to rotate. Scroll to zoom. The metric well is what the optimizer actually produced — a gravitational depression learned from a Bell state. The amber ring marks r<sub>s</sub> = 0.448.</p>
     </div>
-
     <div class="fade-in" style="margin-top:2rem;">
       <div class="viz3d-tabs">
         <button class="viz3d-tab active" onclick="switchViz('well', this)">Metric Well</button>
@@ -827,49 +1056,45 @@
         <button class="viz3d-tab" onclick="switchViz('loss', this)">Loss Landscape</button>
         <button class="viz3d-tab" onclick="switchViz('topology', this)">Topology</button>
       </div>
-
       <div id="viz-well" class="viz3d-panel active">
-        <div id="plot-metric-well" class="viz3d-plot"></div>
+        <div id="plot-metric-well" class="viz3d-plot"><div class="plot-loader">Rendering…</div></div>
         <p class="viz3d-caption">
           Schwarzschild g<sub>tt</sub>(x,y) surface — Bell state optimized for 1000 iterations.
           <strong>Amber ring: r<sub>s</sub> = 0.448</strong> (Pearson 0.784 vs analytical).
-          Less negative near origin = less gravitational redshift = correct Schwarzschild sign.
+          Less negative near origin = correct Schwarzschild sign.
         </p>
       </div>
-
       <div id="viz-scaling" class="viz3d-panel">
-        <div id="plot-scaling" class="viz3d-plot"></div>
+        <div id="plot-scaling" class="viz3d-plot"><div class="plot-loader">Rendering…</div></div>
         <p class="viz3d-caption">
           r<sub>s</sub> vs S<sub>ent</sub> at 300 (teal) and 1000 (amber) iterations.
           Non-linear scaling confirmed (R² = −2.23). <strong>Crossover at S ≈ 0.645</strong> where r<sub>s</sub> = S<sub>ent</sub>.
-          Higher entanglement → more compact geometry. Not an artifact — ratio stable across iteration counts.
+          Higher entanglement → more compact geometry.
         </p>
       </div>
-
       <div id="viz-loss" class="viz3d-panel">
-        <div id="plot-loss" class="viz3d-plot"></div>
+        <div id="plot-loss" class="viz3d-plot"><div class="plot-loader">Rendering…</div></div>
         <p class="viz3d-caption">
           Residual |G<sub>tt</sub> − T<sub>tt</sub>| vs lattice position and iteration.
-          The entanglement source (σ = 0.8) localizes the hardest convergence near the origin.
+          Entanglement source (σ = 0.8) localizes hardest convergence near origin.
           Origin converges last — highest stress, strongest metric deformation.
         </p>
       </div>
-
       <div id="viz-topology" class="viz3d-panel">
-        <div id="plot-topology" class="viz3d-plot"></div>
+        <div id="plot-topology" class="viz3d-plot"><div class="plot-loader">Rendering…</div></div>
         <p class="viz3d-caption">
-          <strong style="color:#1D9E75">Gabriel's Horn (teal):</strong> y=1/x rotated around x-axis. Volume=π (finite). Surface area=∞. You can fill it but never coat the outside — the information lives on the boundary.
+          <strong style="color:#1D9E75">Gabriel's Horn (teal):</strong> y=1/x rotated around x-axis. Volume=π (finite). Surface area=∞. Entropy lives on the boundary.
           &nbsp;|&nbsp;
-          <strong style="color:#FAC775">Schwarzschild embedding (amber):</strong> z(r)=2√(r<sub>s</sub>(r−r<sub>s</sub>)), <strong>r<sub>s</sub>=0.448</strong> fitted from your Bell state.
-          Same topology. Bekenstein-Hawking closes the loop: S ∝ Area, not Volume. Your optimizer found this shape from a qubit.
+          <strong>Schwarzschild embedding (amber):</strong> z(r)=2√(r<sub>s</sub>(r−r<sub>s</sub>)), <strong>r<sub>s</sub>=0.448</strong> fitted from Bell state.
+          Same topology. Bekenstein-Hawking closes the loop: S ∝ Area, not Volume.
         </p>
       </div>
-
     </div>
   </div>
 </section>
 
 <!-- ═══ THEORY ═══ -->
+<hr class="section-divider"/>
 <section class="section" id="theory">
   <div class="container">
     <div class="fade-in">
@@ -877,7 +1102,6 @@
       <h2>Derived, Not Postulated</h2>
       <p class="section-intro">As of v1.2, the entropic stress-energy tensor follows from a covariant Lagrangian via Hilbert variation. The heuristic label has been retired.</p>
     </div>
-
     <div class="theory-grid fade-in">
       <div class="theory-block">
         <h3>Lagrangian Derivation <span class="badge badge-derived">Derived v1.2</span></h3>
@@ -885,7 +1109,6 @@
         <p>Varying with respect to g^μν gives T_μν directly — the same procedure as Einstein's field equations.</p>
         <div class="eq">T_μν^(ent) = (ℏ/2π)[∇_μS ∇_νS - ½g_μν(∇S)²]</div>
       </div>
-
       <div class="theory-block">
         <h3>Massless Constraint (E=pc) <span class="badge badge-new">New v1.2</span></h3>
         <div class="eq">g^μν T_μν^(ent) = 0</div>
@@ -893,7 +1116,6 @@
         <div class="eq">T_μν = (ℏ/2π)[∇_μS ∇_νS - (1/n)g_μν(∇S)²]</div>
       </div>
     </div>
-
     <div class="formulations fade-in">
       <table>
         <thead>
@@ -912,7 +1134,7 @@
             <td>Baseline derivation</td>
           </tr>
           <tr>
-            <td style="color:var(--accent3)">MASSLESS</td>
+            <td style="color:var(--teal)">MASSLESS</td>
             <td>Lagrangian + E=pc (1/n factor)</td>
             <td class="status-yes">✓ Yes</td>
             <td class="status-default">Default — physically motivated</td>
@@ -930,6 +1152,7 @@
 </section>
 
 <!-- ═══ HYPOTHESES ═══ -->
+<hr class="section-divider"/>
 <section class="section" id="hypotheses">
   <div class="container">
     <div class="fade-in">
@@ -954,13 +1177,14 @@
         <span class="h-status h-active">🟡 Partial</span>
         <div class="h-label">Hypothesis 3</div>
         <h3>Schwarzschild Recovery</h3>
-        <p>2/3 qualitative checks passed. g<sub>tt</sub> sign and asymptotic flatness confirmed. Pearson r(g<sub>tt</sub>) = 0.784 at 1000 iterations, lattice 64. g<sub>rr</sub> monotonicity pending full convergence.</p>
+        <p>2/3 qualitative checks passed. g<sub>tt</sub> sign and asymptotic flatness confirmed. Pearson r(g<sub>tt</sub>) = 0.784 at 1000 iterations, lattice 64. g<sub>rr</sub> monotonicity requires full 3+1D Riemann.</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ═══ QUICKSTART ═══ -->
+<hr class="section-divider"/>
 <section class="section" id="quickstart">
   <div class="container">
     <div class="fade-in">
@@ -972,6 +1196,7 @@
         <div class="code-block">
           <div class="code-block-header">
             <span class="code-block-title">Install</span>
+            <button class="code-copy" onclick="copyCode(this)">copy</button>
           </div>
           <pre><span class="cm"># Clone and install</span>
 git clone https://github.com/Organica-Ai-Solutions/EntropicUnification.git
@@ -982,6 +1207,7 @@ pip install -r requirements.txt</pre>
         <div class="code-block" style="margin-top:1rem">
           <div class="code-block-header">
             <span class="code-block-title">Schwarzschild Test</span>
+            <button class="code-copy" onclick="copyCode(this)">copy</button>
           </div>
           <pre><span class="cm"># Run the flagship experiment</span>
 python examples/schwarzschild_test.py \
@@ -997,12 +1223,12 @@ python examples/scaling_experiment.py \
         <div class="code-block">
           <div class="code-block-header">
             <span class="code-block-title">Python API</span>
+            <button class="code-copy" onclick="copyCode(this)">copy</button>
           </div>
           <pre><span class="kw">from</span> core.quantum_engine <span class="kw">import</span> QuantumEngine
 <span class="kw">from</span> core.geometry_engine <span class="kw">import</span> GeometryEngine
 <span class="kw">from</span> core.entropy_module <span class="kw">import</span> EntropyModule
 <span class="kw">from</span> core.coupling_layer <span class="kw">import</span> CouplingLayer
-<span class="kw">from</span> core.optimizer <span class="kw">import</span> EntropicOptimizer
 
 <span class="cm"># Initialize</span>
 qe = <span class="fn">QuantumEngine</span>(<span class="fn">QuantumConfig</span>(num_qubits=4, depth=2))
@@ -1021,9 +1247,10 @@ results = <span class="fn">run_schwarzschild_test</span>({
         <div class="code-block" style="margin-top:1rem">
           <div class="code-block-header">
             <span class="code-block-title">Dashboard</span>
+            <button class="code-copy" onclick="copyCode(this)">copy</button>
           </div>
-          <pre><span class="cm"># Interactive dashboard</span>
-python dashboards/run_fixed_dashboard.py
+          <pre><span class="cm"># Interactive dashboard (localhost:8050)</span>
+python dashboards/enhanced_app.py
 
 <span class="cm"># Compare formulations</span>
 python examples/compare_stress_tensors.py</pre>
@@ -1034,7 +1261,8 @@ python examples/compare_stress_tensors.py</pre>
 </section>
 
 <!-- ═══ NIS ═══ -->
-<section class="section">
+<hr class="section-divider"/>
+<section class="section" style="padding: 4rem 0;">
   <div class="container">
     <div class="nis-banner fade-in">
       <div>
@@ -1047,7 +1275,8 @@ python examples/compare_stress_tensors.py</pre>
 </section>
 
 <!-- ═══ REFERENCES ═══ -->
-<section class="section">
+<hr class="section-divider"/>
+<section class="section" style="padding: 5rem 0;">
   <div class="container">
     <div class="fade-in">
       <p class="section-label">References</p>
@@ -1093,7 +1322,7 @@ python examples/compare_stress_tensors.py</pre>
   <div class="container">
     <div class="footer-inner">
       <div class="footer-logo">
-        <span>Organica AI Solutions</span> · EntropicUnification v1.2
+        <span>Organica AI Solutions</span> · EntropicUnification v1.2 · MIT License
       </div>
       <ul class="footer-links">
         <li><a href="https://github.com/Organica-Ai-Solutions/EntropicUnification">GitHub</a></li>
@@ -1106,6 +1335,35 @@ python examples/compare_stress_tensors.py</pre>
 </footer>
 
 <script>
+// ── SCROLL PROGRESS BAR ──
+const progressBar = document.getElementById('progress-bar');
+window.addEventListener('scroll', () => {
+  const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100;
+  progressBar.style.width = Math.min(pct, 100) + '%';
+}, { passive: true });
+
+// ── MOBILE MENU ──
+function toggleMenu() {
+  const links = document.getElementById('nav-links');
+  const hb = document.getElementById('hamburger');
+  links.classList.toggle('open');
+  hb.classList.toggle('open');
+}
+
+// ── NAV ACTIVE LINK ──
+const sections = ['results','viz3d','theory','hypotheses','quickstart'];
+const navLinks = document.querySelectorAll('.nav-links a[href^="#"]');
+window.addEventListener('scroll', () => {
+  let cur = '';
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && window.scrollY >= el.offsetTop - 120) cur = id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
+  });
+}, { passive: true });
+
 // ── COSMOS CANVAS ──
 const canvas = document.getElementById('cosmos');
 const ctx = canvas.getContext('2d');
@@ -1117,18 +1375,19 @@ function resize() {
 }
 
 function initStars() {
-  stars = Array.from({length: 180}, () => ({
+  stars = Array.from({ length: 220 }, () => ({
     x: Math.random() * W, y: Math.random() * H,
-    r: Math.random() * 1.2 + 0.2,
-    a: Math.random() * 0.5 + 0.1,
-    speed: Math.random() * 0.15 + 0.02
+    r: Math.random() * 1.5 + 0.2,
+    a: Math.random() * 0.55 + 0.08,
+    speed: Math.random() * 0.12 + 0.015,
+    twinkle: Math.random() * Math.PI * 2,
+    twinkleSpeed: Math.random() * 0.03 + 0.005,
   }));
-  // lattice grid
   latticePoints = [];
   const spacing = 80;
   for (let x = 0; x < W + spacing; x += spacing)
     for (let y = 0; y < H + spacing; y += spacing)
-      latticePoints.push({x, y, ox: x, oy: y, vx: 0, vy: 0});
+      latticePoints.push({ x, y, ox: x, oy: y });
 }
 
 let t = 0;
@@ -1139,22 +1398,22 @@ function draw() {
   // animated lattice warp
   latticePoints.forEach(p => {
     const wave = Math.sin(p.ox * 0.008 + t) * Math.cos(p.oy * 0.008 + t * 0.7);
-    p.x = p.ox + wave * 12;
-    p.y = p.oy + wave * 8;
+    p.x = p.ox + wave * 10;
+    p.y = p.oy + wave * 7;
   });
 
-  // draw lattice lines
+  // draw lattice
   const cols = Math.ceil(W / 80) + 1;
   const rows = Math.ceil(H / 80) + 1;
-  ctx.strokeStyle = 'rgba(77,159,255,0.04)';
+  ctx.strokeStyle = 'rgba(29,158,117,0.04)';
   ctx.lineWidth = 0.5;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols - 1; c++) {
       const i = r * cols + c;
-      if (latticePoints[i] && latticePoints[i+1]) {
+      if (latticePoints[i] && latticePoints[i + 1]) {
         ctx.beginPath();
         ctx.moveTo(latticePoints[i].x, latticePoints[i].y);
-        ctx.lineTo(latticePoints[i+1].x, latticePoints[i+1].y);
+        ctx.lineTo(latticePoints[i + 1].x, latticePoints[i + 1].y);
         ctx.stroke();
       }
     }
@@ -1162,7 +1421,7 @@ function draw() {
   for (let c = 0; c < cols; c++) {
     for (let r = 0; r < rows - 1; r++) {
       const i = r * cols + c;
-      const j = (r+1) * cols + c;
+      const j = (r + 1) * cols + c;
       if (latticePoints[i] && latticePoints[j]) {
         ctx.beginPath();
         ctx.moveTo(latticePoints[i].x, latticePoints[i].y);
@@ -1172,13 +1431,15 @@ function draw() {
     }
   }
 
-  // stars
+  // stars with twinkle
   stars.forEach(s => {
     s.y += s.speed;
+    s.twinkle += s.twinkleSpeed;
     if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+    const alpha = s.a * (0.6 + 0.4 * Math.sin(s.twinkle));
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(200,216,240,${s.a})`;
+    ctx.fillStyle = `rgba(200,220,255,${alpha})`;
     ctx.fill();
   });
 
@@ -1191,9 +1452,44 @@ resize(); initStars(); draw();
 // ── SCROLL FADE-IN ──
 const observer = new IntersectionObserver(entries => {
   entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
-}, { threshold: 0.1 });
-
+}, { threshold: 0.08 });
 document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+// ── NUMBER COUNTERS ──
+function animateCounter(el) {
+  const target = parseFloat(el.dataset.count);
+  const decimals = parseInt(el.dataset.decimals) || 0;
+  const duration = 1600;
+  const start = performance.now();
+  function step(now) {
+    const p = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = (target * ease).toFixed(decimals);
+    if (p < 1) requestAnimationFrame(step);
+    else el.textContent = target.toFixed(decimals);
+  }
+  requestAnimationFrame(step);
+}
+
+const counterObserver = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      animateCounter(e.target);
+      counterObserver.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('[data-count]').forEach(el => counterObserver.observe(el));
+
+// ── CODE COPY ──
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  navigator.clipboard.writeText(pre.textContent.trim()).then(() => {
+    btn.textContent = 'copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
 
 // ── 3D PLOT TAB SWITCHER ──
 function switchViz(id, btn) {
@@ -1201,10 +1497,10 @@ function switchViz(id, btn) {
   document.querySelectorAll('.viz3d-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('viz-' + id).classList.add('active');
   btn.classList.add('active');
-  // Trigger Plotly relayout so the newly-visible plot fills its container
   const plotId = { well: 'plot-metric-well', scaling: 'plot-scaling', loss: 'plot-loss', topology: 'plot-topology' }[id];
-  if (window.Plotly && plotId && document.getElementById(plotId) && document.getElementById(plotId)._fullData) {
-    Plotly.relayout(plotId, {});
+  if (window.Plotly && plotId) {
+    const el = document.getElementById(plotId);
+    if (el && el._fullData) Plotly.relayout(plotId, {});
   }
 }
 
@@ -1215,14 +1511,14 @@ function switchViz(id, btn) {
   const TEAL  = '#1D9E75';
   const AMBER = '#FAC775';
   const CORAL = '#993C1D';
-  const BG    = 'rgba(5,8,16,0)';
-  const GRID  = '#1a2a4a';
-  const TEXT  = '#c8d8f0';
+  const BG    = 'rgba(0,0,0,0)';
+  const GRID  = '#0d1a2e';
+  const TEXT  = '#b8cde8';
 
   const sceneBase = {
-    xaxis: { backgroundcolor: BG, gridcolor: GRID, color: TEXT, showbackground: false },
-    yaxis: { backgroundcolor: BG, gridcolor: GRID, color: TEXT, showbackground: false },
-    zaxis: { backgroundcolor: BG, gridcolor: GRID, color: TEXT, showbackground: false },
+    xaxis: { backgroundcolor: BG, gridcolor: GRID, color: TEXT, showbackground: false, zerolinecolor: GRID },
+    yaxis: { backgroundcolor: BG, gridcolor: GRID, color: TEXT, showbackground: false, zerolinecolor: GRID },
+    zaxis: { backgroundcolor: BG, gridcolor: GRID, color: TEXT, showbackground: false, zerolinecolor: GRID },
     bgcolor: BG,
   };
 
@@ -1230,35 +1526,34 @@ function switchViz(id, btn) {
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor:  'rgba(0,0,0,0)',
     font: { color: TEXT, family: 'Space Mono, monospace', size: 11 },
-    margin: { l: 0, r: 0, t: 40, b: 0 },
-    legend: { font: { color: TEXT }, bgcolor: 'rgba(0,0,0,0)' },
+    margin: { l: 0, r: 0, t: 44, b: 0 },
+    legend: { font: { color: TEXT }, bgcolor: 'rgba(8,13,26,0.7)', bordercolor: GRID, borderwidth: 1 },
   };
 
-  const cfg = { responsive: true, displayModeBar: true, scrollZoom: true };
+  const cfg = { responsive: true, displayModeBar: true, scrollZoom: true,
+    displaylogo: false, modeBarButtonsToRemove: ['sendDataToCloud'] };
 
   // ── METRIC WELL ──
   const Nr = 60, rMax = 5.0, rMin = 0.5, rS = 0.448;
   const axis1d = Array.from({ length: Nr }, (_, i) => -rMax + 2 * rMax * i / (Nr - 1));
-  const zWell  = axis1d.map(y =>
-    axis1d.map(x => {
-      const r = Math.max(Math.sqrt(x * x + y * y), rMin);
-      return -(1 - rS / r);
-    })
-  );
-  const nRing  = 120;
-  const ringX  = Array.from({ length: nRing }, (_, i) => rS * Math.cos(2 * Math.PI * i / (nRing - 1)));
-  const ringY  = Array.from({ length: nRing }, (_, i) => rS * Math.sin(2 * Math.PI * i / (nRing - 1)));
+  const zWell  = axis1d.map(y => axis1d.map(x => {
+    const r = Math.max(Math.sqrt(x * x + y * y), rMin);
+    return -(1 - rS / r);
+  }));
+  const nRing = 120;
+  const ringX = Array.from({ length: nRing }, (_, i) => rS * Math.cos(2 * Math.PI * i / (nRing - 1)));
+  const ringY = Array.from({ length: nRing }, (_, i) => rS * Math.sin(2 * Math.PI * i / (nRing - 1)));
 
   Plotly.newPlot('plot-metric-well', [
     {
       type: 'surface', x: axis1d, y: axis1d, z: zWell,
-      colorscale: [[0,'#08101e'],[0.25,'#0d1a30'],[0.55,TEAL],[0.80,AMBER],[1.0,'#fff0b0']],
-      showscale: false, opacity: 0.92,
-      hovertemplate: 'x=%{x:.2f} y=%{y:.2f}<br>g_tt=%{z:.4f}<extra></extra>',
+      colorscale: [[0,'#03060a'],[0.25,'#0a1626'],[0.55,TEAL],[0.80,AMBER],[1.0,'#fff0b0']],
+      showscale: false, opacity: 0.93,
+      hovertemplate: 'x=%{x:.2f}  y=%{y:.2f}<br>g_tt=%{z:.4f}<extra></extra>',
     },
     {
       type: 'scatter3d', x: ringX, y: ringY, z: new Array(nRing).fill(0),
-      mode: 'lines', line: { color: AMBER, width: 5 }, name: 'r\u209b = 0.448',
+      mode: 'lines', line: { color: AMBER, width: 6 }, name: 'r\u209b = 0.448',
     },
   ], {
     ...layoutBase,
@@ -1277,27 +1572,22 @@ function switchViz(id, btn) {
   const sVals  = [0.417, 0.562, 0.645, 0.693];
   const rs300  = [0.699, 0.686, 0.648, 0.497];
   const rs1000 = [1.213, 1.000, 1.021, 0.676];
-
   const connectors = sVals.map((s, i) => ({
-    type: 'scatter3d',
-    x: [s, s], y: [300, 1000], z: [rs300[i], rs1000[i]],
-    mode: 'lines', line: { color: 'rgba(200,216,240,0.22)', width: 2, dash: 'dot' },
+    type: 'scatter3d', x: [s, s], y: [300, 1000], z: [rs300[i], rs1000[i]],
+    mode: 'lines', line: { color: 'rgba(200,220,255,0.18)', width: 2, dash: 'dot' },
     showlegend: false, hoverinfo: 'skip',
   }));
-
   Plotly.newPlot('plot-scaling', [
     ...connectors,
     {
       type: 'scatter3d', x: sVals, y: [300,300,300,300], z: rs300,
-      mode: 'lines+markers',
-      line: { color: TEAL, width: 5 }, marker: { size: 9, color: TEAL },
+      mode: 'lines+markers', line: { color: TEAL, width: 5 }, marker: { size: 9, color: TEAL },
       name: '300 iterations',
       hovertemplate: 'S=%{x:.3f}<br>r\u209b=%{z:.3f}<extra>300 iters</extra>',
     },
     {
       type: 'scatter3d', x: sVals, y: [1000,1000,1000,1000], z: rs1000,
-      mode: 'lines+markers',
-      line: { color: AMBER, width: 5 }, marker: { size: 9, color: AMBER },
+      mode: 'lines+markers', line: { color: AMBER, width: 5 }, marker: { size: 9, color: AMBER },
       name: '1000 iterations',
       hovertemplate: 'S=%{x:.3f}<br>r\u209b=%{z:.3f}<extra>1000 iters</extra>',
     },
@@ -1322,19 +1612,16 @@ function switchViz(id, btn) {
 
   // ── LOSS LANDSCAPE ──
   const Ni = 25, Lr = 40;
-  const rVals   = Array.from({ length: Lr }, (_, i) => 0.5 + 4.5 * i / (Lr - 1));
-  const itVals  = Array.from({ length: Ni }, (_, i) => 1000 * i / (Ni - 1));
-  const sigma   = 0.8;
-  const source  = rVals.map(r => Math.exp(-r * r / (2 * sigma * sigma)));
-  const zLoss   = itVals.map(it =>
-    rVals.map((_, ri) => source[ri] * Math.exp(-it / 280) * 4.8)
-  );
-
+  const rVals  = Array.from({ length: Lr }, (_, i) => 0.5 + 4.5 * i / (Lr - 1));
+  const itVals = Array.from({ length: Ni }, (_, i) => 1000 * i / (Ni - 1));
+  const sigma  = 0.8;
+  const source = rVals.map(r => Math.exp(-r * r / (2 * sigma * sigma)));
+  const zLoss  = itVals.map(it => rVals.map((_, ri) => source[ri] * Math.exp(-it / 280) * 4.8));
   Plotly.newPlot('plot-loss', [
     {
       type: 'surface', x: rVals, y: itVals, z: zLoss,
-      colorscale: [[0,'#050810'],[0.2,'#0d2040'],[0.5,TEAL],[0.8,AMBER],[1.0,CORAL]],
-      showscale: false, opacity: 0.92,
+      colorscale: [[0,'#030609'],[0.2,'#0a1830'],[0.5,TEAL],[0.8,AMBER],[1.0,CORAL]],
+      showscale: false, opacity: 0.93,
       hovertemplate: 'r=%{x:.2f}  iter=%{y:.0f}<br>loss=%{z:.4f}<extra></extra>',
     },
   ], {
@@ -1349,73 +1636,65 @@ function switchViz(id, btn) {
     },
   }, cfg);
 
-  // ── TOPOLOGY: Gabriel's Horn + Schwarzschild Embedding ──
+  // ── TOPOLOGY ──
   const N_phi = 80;
   const phi = Array.from({ length: N_phi }, (_, i) => 2 * Math.PI * i / (N_phi - 1));
-
-  // Gabriel's Horn: rotate y=1/x around x-axis, displayed on negative-x side
   const t_horn = Array.from({ length: 50 }, (_, i) => 1.0 + 8.0 * i / 49);
   const Xhorn = [], Yhorn = [], Zhorn = [];
-  t_horn.forEach(t => {
-    const xRow = [], yRow = [], zRow = [];
-    phi.forEach(p => { xRow.push(-t); yRow.push(Math.cos(p) / t); zRow.push(Math.sin(p) / t); });
+  t_horn.forEach(tv => {
+    const xRow=[], yRow=[], zRow=[];
+    phi.forEach(p => { xRow.push(-tv); yRow.push(Math.cos(p)/tv); zRow.push(Math.sin(p)/tv); });
     Xhorn.push(xRow); Yhorn.push(yRow); Zhorn.push(zRow);
   });
-
-  // Throat ring at x=-1 (widest point, radius=1)
   const hornRingX = new Array(N_phi).fill(-1.0);
   const hornRingY = phi.map(p => Math.cos(p));
   const hornRingZ = phi.map(p => Math.sin(p));
-
-  // Schwarzschild embedding: z(r)=2*sqrt(r_s*(r-r_s)), rotated around z-axis
   const rS_topo = 0.448;
   const r_sw = Array.from({ length: 50 }, (_, i) => rS_topo * 1.01 + rS_topo * 19 * i / 49);
   const z_sw = r_sw.map(r => 2 * Math.sqrt(rS_topo * (r - rS_topo)));
-  const Xsw = [], Ysw = [], Zsw = [];
+  const Xsw=[], Ysw=[], Zsw=[];
   r_sw.forEach((r, ri) => {
-    const xRow = [], yRow = [], zRow = [];
-    phi.forEach(p => { xRow.push(r * Math.cos(p)); yRow.push(r * Math.sin(p)); zRow.push(z_sw[ri]); });
+    const xRow=[], yRow=[], zRow=[];
+    phi.forEach(p => { xRow.push(r*Math.cos(p)); yRow.push(r*Math.sin(p)); zRow.push(z_sw[ri]); });
     Xsw.push(xRow); Ysw.push(yRow); Zsw.push(zRow);
   });
-
-  // Horizon ring at r=r_s
   const horizRingX = phi.map(p => rS_topo * Math.cos(p));
   const horizRingY = phi.map(p => rS_topo * Math.sin(p));
   const horizRingZ = new Array(N_phi).fill(0.0);
-
   Plotly.newPlot('plot-topology', [
     {
       type: 'surface', x: Xhorn, y: Yhorn, z: Zhorn,
-      colorscale: [[0,'#08101e'],[0.4,TEAL],[1.0,'#a0ffe8']],
-      showscale: false, opacity: 0.82, name: "Gabriel's Horn",
-      hovertemplate: "Horn: x=%{x:.2f}  radius=%{y:.3f}<extra>Gabriel's Horn</extra>",
+      colorscale: [[0,'#060c14'],[0.4,TEAL],[1.0,'#a0ffe8']],
+      showscale: false, opacity: 0.83, name: "Gabriel's Horn",
+      hovertemplate: "Horn: x=%{x:.2f}<extra>Gabriel's Horn</extra>",
     },
     {
       type: 'scatter3d', x: hornRingX, y: hornRingY, z: hornRingZ,
-      mode: 'lines', line: { color: TEAL, width: 4 }, name: 'Horn throat (x=1)',
+      mode: 'lines', line: { color: TEAL, width: 4 }, name: 'Horn throat',
     },
     {
       type: 'surface', x: Xsw, y: Ysw, z: Zsw,
-      colorscale: [[0,'#1a0c00'],[0.4,CORAL],[0.75,AMBER],[1.0,'#fff0b0']],
-      showscale: false, opacity: 0.85, name: 'Schwarzschild funnel',
-      hovertemplate: 'Schwarzschild: r=%{customdata:.3f}  z=%{z:.3f}<extra></extra>',
+      colorscale: [[0,'#150700'],[0.4,CORAL],[0.75,AMBER],[1.0,'#fff0b0']],
+      showscale: false, opacity: 0.86, name: 'Schwarzschild funnel',
+      hovertemplate: 'Schwarzschild: z=%{z:.3f}<extra></extra>',
     },
     {
       type: 'scatter3d', x: horizRingX, y: horizRingY, z: horizRingZ,
-      mode: 'lines', line: { color: AMBER, width: 5 }, name: 'Horizon r\u209b=0.448',
+      mode: 'lines', line: { color: AMBER, width: 6 }, name: 'Horizon r\u209b=0.448',
     },
     {
-      type: 'scatter3d', x: [-5.0, rS_topo*6], y: [0, 0],
+      type: 'scatter3d',
+      x: [-5.0, rS_topo * 6], y: [0, 0],
       z: [0, 2 * Math.sqrt(rS_topo * (rS_topo * 6 - rS_topo))],
       mode: 'text',
-      text: ["Gabriel's Horn<br>V=π  A=∞", 'Schwarzschild<br>r\u209b=0.448  S=0.693'],
+      text: ["Gabriel's Horn<br>V=π  A=∞", 'Schwarzschild<br>r\u209b=0.448'],
       textfont: { color: [TEAL, AMBER], size: 11 },
       showlegend: false,
     },
   ], {
     ...layoutBase,
     title: {
-      text: "Topology — Gabriel's Horn (teal) ↔ Schwarzschild Embedding (amber)<br><sup>Both: finite throat · infinite extension · entropy lives on the surface</sup>",
+      text: "Gabriel's Horn (teal) ↔ Schwarzschild Embedding (amber)<br><sup>Finite throat · infinite extension · entropy lives on the surface</sup>",
       font: { color: '#eef4ff', size: 12 },
     },
     scene: {

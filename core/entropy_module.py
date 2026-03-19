@@ -193,15 +193,18 @@ class EntropyModule:
         # Ensure state requires gradient
         if not state.requires_grad:
             state = state.detach().clone().requires_grad_(True)
-            
+
         # Compute entropy with tracking enabled
         entropy = self.compute_entanglement_entropy(
             state, partition, include_edge, apply_uv_cutoff
         )
-        
-        # Compute gradient
+
+        # Compute gradient (create_graph=True so callers can compute second derivatives)
         grad = torch.autograd.grad(entropy, state, create_graph=True, retain_graph=True)[0]
-        
+
+        # Store state reference so Faulkner formulation can compute the Hessian
+        self._last_state = state
+
         return grad
 
     def entropy_flow(
@@ -231,8 +234,16 @@ class EntropyModule:
             ) for state in states]
         )
         
-        # Compute time derivative using finite differences
-        dS_dt = torch.gradient(entropies, spacing=(times,), edge_order=2)[0]
+        # Compute time derivative using central finite differences.
+        # torch.gradient() has inconsistent API across PyTorch versions;
+        # manual implementation is more portable.
+        dt = times[1:] - times[:-1]  # (N-1,) interval widths
+        # Interior points: central difference
+        dS_dt = torch.zeros_like(entropies)
+        dS_dt[1:-1] = (entropies[2:] - entropies[:-2]) / (times[2:] - times[:-2])
+        # Boundary points: one-sided difference
+        dS_dt[0] = (entropies[1] - entropies[0]) / dt[0].clamp(min=1e-12)
+        dS_dt[-1] = (entropies[-1] - entropies[-2]) / dt[-1].clamp(min=1e-12)
         
         return entropies, dS_dt
 
@@ -281,50 +292,76 @@ class EntropyModule:
         return coefficient.item()
         
     def holographic_entropy(
-        self, 
-        state: torch.Tensor, 
+        self,
+        state: torch.Tensor,
         partition: Sequence[int],
-        metric_tensor: torch.Tensor
+        metric_tensor: torch.Tensor,
+        G_N: float = 1.0,
+        hbar: float = 1.0,
     ) -> torch.Tensor:
-        """Compute holographic entanglement entropy using Ryu-Takayanagi formula.
-        
-        S_A = Area(γ_A)/(4G_N ℏ)
-        
+        """Compute holographic entanglement entropy via the Ryu-Takayanagi formula.
+
+        S_A = L(γ_A) / (4 G_N ℏ)
+
+        where L(γ_A) is the length of the minimal geodesic in the bulk connecting
+        the boundary endpoints of region A (Ryu-Takayanagi surface in 1+1D).
+
+        Implementation
+        --------------
+        For a 1+1D bulk with metric g_μν = diag(g_tt, g_rr), on a constant-time
+        slice the geodesic length between two radial positions r_a and r_b is:
+
+            L = ∫_{r_a}^{r_b} √g_rr(r) dr
+
+        The qubit partition is mapped to a spatial interval by assuming that
+        qubits are uniformly distributed over the lattice.
+
         Args:
-            state: Pure quantum state vector
-            partition: Indices of qubits to keep (trace out the rest)
-            metric_tensor: Spacetime metric tensor
-            
+            state: Pure quantum state vector (used to infer partition size).
+            partition: Qubit indices defining boundary region A.
+            metric_tensor: Either
+                - (lattice_size, dim, dim) full metric field, or
+                - (dim, dim) metric at a single lattice point (used as constant).
+            G_N: Newton's constant in natural units (default 1).
+            hbar: Reduced Planck constant in natural units (default 1).
+
         Returns:
-            Holographic entropy estimate
+            Holographic entropy estimate S_RT as a scalar tensor.
         """
-        # Simplified implementation - in a full implementation, we would
-        # solve for the minimal surface γ_A in the bulk whose boundary
-        # matches the boundary of region A
-        
-        # For now, we'll use a heuristic approximation
-        # We compute the standard entropy and apply a holographic correction
-        
-        # Constants (in natural units)
-        G_N = 1.0  # Newton's constant
-        hbar = 1.0  # Reduced Planck constant
-        
-        # Compute standard entropy
-        standard_entropy = self.compute_entanglement_entropy(state, partition)
-        
-        # Approximate "area" of the entangling surface
-        boundary_size = len(partition)
-        
-        # In a proper holographic calculation, we would compute the
-        # area of the minimal surface in the bulk geometry
-        # For now, we use the boundary size and metric determinant as a proxy
-        det_g = torch.det(metric_tensor)
-        area_factor = torch.sqrt(torch.abs(det_g)) * boundary_size
-        
-        # Apply Ryu-Takayanagi formula: S = Area/(4 G_N ℏ)
-        holographic_entropy = area_factor / (4.0 * G_N * hbar)
-        
-        return holographic_entropy
+        if metric_tensor.dim() == 2:
+            # Single-point metric: treat as constant bulk geometry
+            g_rr = metric_tensor[1, 1].abs()
+            # Geodesic length ≈ √g_rr * (fraction of total system covered by partition)
+            frac = len(partition) / self.quantum_engine.num_qubits
+            geodesic_length = torch.sqrt(g_rr) * frac
+            return geodesic_length / (4.0 * G_N * hbar)
+
+        # Full lattice metric: shape (lattice_size, dim, dim)
+        lattice_size = metric_tensor.shape[0]
+        n_qubits = self.quantum_engine.num_qubits
+
+        # Map partition to lattice interval [i_a, i_b]
+        if len(partition) == 0:
+            return torch.tensor(0.0, dtype=metric_tensor.dtype, device=metric_tensor.device)
+
+        # Qubit i spans lattice positions [i*L/n, (i+1)*L/n)
+        # Boundary region A = contiguous block from min(partition) to max(partition)
+        q_min = min(partition)
+        q_max = max(partition)
+        i_a = int(q_min * lattice_size / n_qubits)
+        i_b = int((q_max + 1) * lattice_size / n_qubits)
+        i_a = max(0, min(i_a, lattice_size - 1))
+        i_b = max(i_a + 1, min(i_b, lattice_size))
+
+        # Spatial step size (assumed uniform)
+        dr = 1.0 / lattice_size  # normalized units; scale by actual dx if known
+
+        # Geodesic length L = Σ √g_rr(r_i) * dr  for r_i in [r_a, r_b]
+        g_rr_values = metric_tensor[i_a:i_b, 1, 1].abs()
+        geodesic_length = torch.sum(torch.sqrt(g_rr_values)) * dr
+
+        # RT formula: S = L / (4 G_N ℏ)
+        return geodesic_length / (4.0 * G_N * hbar)
         
     def get_entropy_components(self) -> Dict[str, float]:
         """Get the components of the last entropy calculation.

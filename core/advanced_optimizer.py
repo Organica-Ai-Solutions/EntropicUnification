@@ -74,7 +74,8 @@ class AdvancedEntropicOptimizer(EntropicOptimizer):
         
         self.config = config
         self.step_count = 0
-        
+        self.active_index = 0  # Index into the batch of evolved states
+
         # Initialize optimizer state
         self.m = None  # First moment estimate (momentum)
         self.v = None  # Second moment estimate (velocity)
@@ -175,14 +176,15 @@ class AdvancedEntropicOptimizer(EntropicOptimizer):
         """Check if early stopping criteria are met."""
         if not self.config.early_stopping:
             return False
-        
-        if loss < self.best_loss - self.config.min_delta:
-            # We found a better loss
-            self.best_loss = loss
+
+        # Safely convert tensor or float to Python float
+        loss_val = float(torch.real(loss).item()) if isinstance(loss, torch.Tensor) else float(loss)
+
+        if loss_val < self.best_loss - self.config.min_delta:
+            self.best_loss = loss_val
             self.patience_counter = 0
             return False
         else:
-            # No improvement
             self.patience_counter += 1
             if self.patience_counter >= self.config.patience:
                 self.stopped_early = True
@@ -190,40 +192,59 @@ class AdvancedEntropicOptimizer(EntropicOptimizer):
             return False
     
     def _apply_basin_hopping(self, metric, loss):
-        """Apply basin hopping to escape local minima."""
+        """Apply basin hopping to escape local minima.
+
+        Must be called from within train() — requires self._last_train_state
+        to be set. Calling this outside a training loop will raise RuntimeError.
+        """
         if not self.config.basin_hopping:
             return metric, loss
+
+        if not hasattr(self, '_last_train_state'):
+            raise RuntimeError(
+                "_apply_basin_hopping requires self._last_train_state, "
+                "which is only set inside train(). Do not call this method directly."
+            )
         
         # Only apply basin hopping occasionally
         if np.random.random() > 0.1:  # 10% chance
             return metric, loss
         
-        # Create a perturbed metric
-        perturbed_metric = metric + torch.randn_like(metric) * self.config.step_size
-        
-        # Evaluate the loss with the perturbed metric
-        original_metric = self.geometry.metric_field
-        self.geometry.metric_field = perturbed_metric
-        
-        # Recompute all tensors with the new metric
-        self.geometry.clear_cache()
-        
-        # Compute the loss with the perturbed metric
-        # We need to recompute the coupling terms with the new metric
-        state = self.quantum.state
-        partition = list(range(self.quantum.num_qubits // 2))  # Default partition
-        terms = self.coupling.compute_coupling_terms(state, partition)
-        perturbed_loss = self.loss.total_loss(terms, None, None)
-        
+        # Save original metric data (metric_field is nn.Parameter; use .data)
+        original_data = self.geometry.metric_field.data.clone()
+
+        # Perturb metric
+        self.geometry.metric_field.data.add_(
+            torch.randn_like(self.geometry.metric_field) * self.config.step_size
+        )
+        self.geometry._clear_cache()
+
+        # Compute loss at perturbed metric using the last state seen by train()
+        state_ref = getattr(self, "_last_train_state", None)
+        if state_ref is None:
+            # No state available — reject perturbation
+            self.geometry.metric_field.data.copy_(original_data)
+            self.geometry._clear_cache()
+            return metric, loss
+
+        partition = list(range(self.quantum.num_qubits // 2))
+        with torch.no_grad():
+            terms = self.coupling.compute_coupling_terms(state_ref, partition)
+            perturbed_loss_dict = self.loss.total_loss(terms, None, None)
+        perturbed_loss_val = float(perturbed_loss_dict["total_loss"].item())
+
+        # Current loss as float
+        current_loss_val = float(torch.real(loss).item()) if isinstance(loss, torch.Tensor) else float(loss)
+
         # Metropolis acceptance criterion
-        delta_loss = perturbed_loss - loss
+        delta_loss = perturbed_loss_val - current_loss_val
         if delta_loss < 0 or np.random.random() < np.exp(-delta_loss / self.config.temperature):
-            # Accept the perturbation
-            return perturbed_metric, perturbed_loss
+            # Accept — keep the perturbed metric; return updated metric tensor and loss
+            return self.geometry.metric_field, perturbed_loss_val
         else:
-            # Reject the perturbation
-            self.geometry.metric_field = original_metric
-            self.geometry.clear_cache()
+            # Reject — restore original metric
+            self.geometry.metric_field.data.copy_(original_data)
+            self.geometry._clear_cache()
             return metric, loss
     
     def optimization_step(self, state, partition, target_gradient=None, weights=None):
@@ -233,7 +254,7 @@ class AdvancedEntropicOptimizer(EntropicOptimizer):
         
         # Compute loss and its gradient
         losses = self.loss.total_loss(terms, target_gradient, weights)
-        total_loss = losses["total"]
+        total_loss = losses["total_loss"]
         
         # Compute gradient of loss with respect to metric
         metric_gradient = self.compute_metric_gradient(state, partition, target_gradient, weights)
@@ -262,14 +283,15 @@ class AdvancedEntropicOptimizer(EntropicOptimizer):
         
         # Apply basin hopping if enabled
         if self.config.basin_hopping:
-            self.geometry.metric_field, new_loss = self._apply_basin_hopping(
+            _, new_loss = self._apply_basin_hopping(
                 self.geometry.metric_field, total_loss
             )
-            if new_loss != total_loss:
-                # Recompute losses with the new metric
+            current_loss_val = float(torch.real(total_loss).item()) if isinstance(total_loss, torch.Tensor) else float(total_loss)
+            if new_loss != current_loss_val:
+                # Recompute losses with the accepted metric
                 terms = self.coupling.compute_coupling_terms(state, partition)
                 losses = self.loss.total_loss(terms, target_gradient, weights)
-                total_loss = losses["total"]
+                total_loss = losses["total_loss"]
         
         # Increment step counter
         self.step_count += 1
@@ -288,7 +310,7 @@ class AdvancedEntropicOptimizer(EntropicOptimizer):
         
         # Select active state
         state = states[self.active_index]
-        self.quantum.state = state
+        self._last_train_state = state  # used by _apply_basin_hopping
         
         # Initialize history
         history = {
@@ -313,40 +335,42 @@ class AdvancedEntropicOptimizer(EntropicOptimizer):
             losses = self.optimization_step(state, partition, target_gradient, weights)
             
             # Update history
-            history["total_loss"].append(losses["total"].item())
-            history["einstein_loss"].append(losses["einstein"].item())
-            history["entropy_loss"].append(losses["entropy"].item())
-            if "regularity" in losses:
-                history["regularity_loss"].append(losses["regularity"].item())
+            history["total_loss"].append(losses["total_loss"].item())
+            history["einstein_loss"].append(losses["einstein_loss"].item())
+            history["entropy_loss"].append(losses["entropy_loss"].item())
+            if "regularity_loss" in losses:
+                history["regularity_loss"].append(losses["regularity_loss"].item())
             else:
                 history["regularity_loss"].append(0.0)
             history["learning_rate"].append(self.current_lr)
-            
+
             # Track best state
-            if losses["total"].item() < best_loss:
-                best_loss = losses["total"].item()
+            if losses["total_loss"].item() < best_loss:
+                best_loss = losses["total_loss"].item()
                 best_metric = self.geometry.metric_field.clone()
                 best_step = step
-            
+
             # Update progress bar
-            pbar.set_description(f"Entropic optimization: Loss={losses['total']:.6f}, LR={self.current_lr:.6f}")
+            pbar.set_description(
+                f"Entropic optimization: Loss={losses['total_loss']:.6f}, LR={self.current_lr:.6f}"
+            )
             
             # Check for early stopping
-            if self._check_early_stopping(losses["total"].item()):
+            if self._check_early_stopping(losses["total_loss"]):
                 pbar.set_description(f"Entropic optimization: Converged after {step+1} steps!")
                 break
-            
+
             # Learning rate scheduling for reduce_on_plateau
-            if (self.config.lr_schedule == LRScheduleType.REDUCE_ON_PLATEAU and 
-                self.patience_counter > self.config.patience // 2):
+            if (self.config.lr_schedule == LRScheduleType.REDUCE_ON_PLATEAU and
+                    self.patience_counter > self.config.patience // 2):
                 self.current_lr *= self.config.lr_decay_rate
                 self.patience_counter = 0
                 pbar.set_description(f"Entropic optimization: Reducing LR to {self.current_lr:.6f}")
-        
+
         # Restore best metric if needed
         if self.config.early_stopping and best_metric is not None:
-            self.geometry.metric_field = best_metric
-            self.geometry.clear_cache()
+            self.geometry.metric_field.data.copy_(best_metric.data)
+            self.geometry._clear_cache()
         
         # Prepare results
         results = {

@@ -1,11 +1,13 @@
 """
 Settings Panel Component for EntropicUnification Dashboard
-
-This module provides the settings panel for customizing the dashboard appearance and behavior.
 """
 
 import dash_bootstrap_components as dbc
 from dash import dcc, html
+
+TEAL  = "#1D9E75"
+AMBER = "#FAC775"
+
 
 def create_settings_panel():
     """Create the settings panel component."""
@@ -18,22 +20,22 @@ def create_settings_panel():
                 className="settings-toggle",
                 n_clicks=0,
             ),
-            
+
             # Settings Panel
             html.Div(
                 [
-                    html.H4("Dashboard Settings", className="mb-4"),
-                    
-                    # Theme Settings
+                    html.H4("Dashboard Settings", className="mb-4",
+                            style={"color": TEAL, "fontFamily": "Space Mono, monospace"}),
+
+                    # ── Appearance ─────────────────────────────────────────
                     html.Div(
                         [
-                            html.H5("Theme", className="mb-3"),
+                            html.H5("Appearance", className="mb-3",
+                                    style={"color": AMBER, "fontSize": "0.85rem",
+                                           "textTransform": "uppercase", "letterSpacing": "0.08em"}),
                             dbc.Row(
                                 [
-                                    dbc.Col(
-                                        html.P("Dark Mode"),
-                                        width=6,
-                                    ),
+                                    dbc.Col(html.P("Dark Mode", className="mb-0"), width=7),
                                     dbc.Col(
                                         html.Label(
                                             [
@@ -45,181 +47,78 @@ def create_settings_panel():
                                             ],
                                             className="theme-switch",
                                         ),
-                                        width=6,
+                                        width=5,
                                         className="d-flex justify-content-end",
                                     ),
                                 ],
-                                className="mb-3",
-                            ),
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        html.P("Color Theme"),
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        dcc.Dropdown(
-                                            id="color-theme-dropdown",
-                                            options=[
-                                                {"label": "Default (Flatly)", "value": "FLATLY"},
-                                                {"label": "Darkly", "value": "DARKLY"},
-                                                {"label": "Cyborg", "value": "CYBORG"},
-                                                {"label": "Journal", "value": "JOURNAL"},
-                                                {"label": "Lumen", "value": "LUMEN"},
-                                                {"label": "Superhero", "value": "SUPERHERO"},
-                                            ],
-                                            value="FLATLY",
-                                            clearable=False,
-                                        ),
-                                        width=6,
-                                    ),
-                                ],
-                                className="mb-3",
+                                className="mb-3 align-items-center",
                             ),
                         ],
                         className="mb-4",
                     ),
-                    
-                    # Plot Settings
+
+                    # ── Plot Settings ───────────────────────────────────────
                     html.Div(
                         [
-                            html.H5("Plot Settings", className="mb-3"),
+                            html.H5("Plot Settings", className="mb-3",
+                                    style={"color": AMBER, "fontSize": "0.85rem",
+                                           "textTransform": "uppercase", "letterSpacing": "0.08em"}),
                             dbc.Row(
                                 [
+                                    dbc.Col(html.P("Interactive Plots", className="mb-0"), width=7),
                                     dbc.Col(
-                                        html.P("Plot Style"),
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        dcc.Dropdown(
-                                            id="plot-style-dropdown",
-                                            options=[
-                                                {"label": "Plotly", "value": "plotly"},
-                                                {"label": "Plotly White", "value": "plotly_white"},
-                                                {"label": "Plotly Dark", "value": "plotly_dark"},
-                                                {"label": "Seaborn", "value": "seaborn"},
-                                                {"label": "Ggplot2", "value": "ggplot2"},
-                                                {"label": "Simple White", "value": "simple_white"},
-                                            ],
-                                            value="plotly_white",
-                                            clearable=False,
-                                        ),
-                                        width=6,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        html.P("Download Format"),
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        dcc.Dropdown(
-                                            id="download-format-dropdown",
-                                            options=[
-                                                {"label": "PNG", "value": "png"},
-                                                {"label": "SVG", "value": "svg"},
-                                                {"label": "PDF", "value": "pdf"},
-                                                {"label": "JPEG", "value": "jpeg"},
-                                            ],
-                                            value="png",
-                                            clearable=False,
-                                        ),
-                                        width=6,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        html.P("Interactive Plots"),
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        dbc.Switch(
-                                            id="interactive-plots-switch",
-                                            value=True,
-                                        ),
-                                        width=6,
+                                        dbc.Switch(id="interactive-plots-switch", value=True),
+                                        width=5,
                                         className="d-flex justify-content-end",
                                     ),
                                 ],
-                                className="mb-3",
+                                className="mb-3 align-items-center",
                             ),
                         ],
                         className="mb-4",
                     ),
-                    
-                    # UI Settings
+
+                    # ── Auto-Refresh ────────────────────────────────────────
                     html.Div(
                         [
-                            html.H5("UI Settings", className="mb-3"),
+                            html.H5("Refresh", className="mb-3",
+                                    style={"color": AMBER, "fontSize": "0.85rem",
+                                           "textTransform": "uppercase", "letterSpacing": "0.08em"}),
                             dbc.Row(
                                 [
+                                    dbc.Col(html.P("Auto-refresh", className="mb-0"), width=7),
                                     dbc.Col(
-                                        html.P("Show Help Tooltips"),
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        dbc.Switch(
-                                            id="help-tooltips-switch",
-                                            value=True,
-                                        ),
-                                        width=6,
+                                        dbc.Switch(id="auto-refresh-switch", value=True),
+                                        width=5,
                                         className="d-flex justify-content-end",
                                     ),
                                 ],
-                                className="mb-3",
+                                className="mb-3 align-items-center",
                             ),
                             dbc.Row(
                                 [
-                                    dbc.Col(
-                                        html.P("Auto-refresh"),
-                                        width=6,
-                                    ),
-                                    dbc.Col(
-                                        dbc.Switch(
-                                            id="auto-refresh-switch",
-                                            value=True,
-                                        ),
-                                        width=6,
-                                        className="d-flex justify-content-end",
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        html.P("Refresh Interval (s)"),
-                                        width=6,
-                                    ),
+                                    dbc.Col(html.P("Interval (s)", className="mb-0"), width=7),
                                     dbc.Col(
                                         dbc.Input(
                                             id="refresh-interval-input",
                                             type="number",
-                                            min=1,
-                                            max=60,
-                                            step=1,
-                                            value=1,
+                                            min=1, max=60, step=1, value=1,
                                         ),
-                                        width=6,
+                                        width=5,
                                     ),
                                 ],
-                                className="mb-3",
+                                className="mb-3 align-items-center",
                             ),
                         ],
                         className="mb-4",
                     ),
-                    
-                    # Reset Button
+
+                    # ── Reset ───────────────────────────────────────────────
                     dbc.Button(
                         "Reset to Defaults",
                         id="reset-settings-button",
                         color="secondary",
+                        outline=True,
                         className="w-100 mb-3",
                     ),
                 ],

@@ -12,7 +12,7 @@ import json
 
 from .quantum_engine import QuantumEngine
 from .geometry_engine import GeometryEngine
-from .entropy_module import EntropyEngine
+from .entropy_module import EntropyModule
 
 class EntropicUnificationTrainer:
     """Coordinates the training between quantum and geometric systems."""
@@ -30,7 +30,7 @@ class EntropicUnificationTrainer:
         # Initialize components
         self.quantum_engine = QuantumEngine(config['quantum']).to(self.device)
         self.geometry_engine = GeometryEngine(**config['geometry']).to(self.device)
-        self.entropy_engine = EntropyEngine(epsilon=1e-10)
+        self.entropy_engine = EntropyModule(self.quantum_engine, epsilon=1e-10)
         
         # Optimizers
         self.quantum_optimizer = optim.Adam(
