@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "EntropicUnification: A Differentiable Framework for Learning Spacetime Geometry from Quantum Entanglement Entropy"
+authors:
+  - family-names: Torres
+    given-names: Diego
+    email: diego.torres@organicaai.com
+    affiliation: Organica AI Solutions
+version: "1.2"
+date-released: "2026-03-18"
+url: "https://github.com/Organica-Ai-Solutions/EntropicUnification"
+repository-code: "https://github.com/Organica-Ai-Solutions/EntropicUnification"
+license: MIT
+abstract: >
+  A differentiable computational framework for learning spacetime geometry
+  from quantum entanglement entropy. Implements Lagrangian-derived entropic
+  stress-energy tensors (LAGRANGIAN, MASSLESS, FAULKNER formulations) and
+  optimizes the metric tensor via PyTorch autograd to minimize the Einstein
+  residual. Demonstrates Schwarzschild geometry recovery from a Bell state
+  (Pearson r=0.784) and non-linear entanglement scaling with crossover at
+  S≈0.645.
+keywords:
+  - quantum entanglement
+  - spacetime geometry
+  - emergent gravity
+  - holographic principle
+  - differentiable physics
+  - Schwarzschild metric
+  - Ryu-Takayanagi
+  - Bekenstein-Hawking
+preferred-citation:
+  type: article
+  title: "EntropicUnification: A Differentiable Framework for Learning Spacetime Geometry from Quantum Entanglement Entropy"
+  authors:
+    - family-names: Torres
+      given-names: Diego
+      affiliation: Organica AI Solutions
+  year: 2026
+  url: "https://github.com/Organica-Ai-Solutions/EntropicUnification"
