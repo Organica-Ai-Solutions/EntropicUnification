@@ -340,7 +340,7 @@ def run_schwarzschild_test(cfg: dict) -> dict:
           f"g_tt less negative near source (correct Schwarzschild sign)")
     print(f"  [{'PASS' if flatness_check else 'FAIL'}]  "
           f"Asymptotic flatness g_tt(r_max) ~= -1  "
-          f"(Δ = {abs(g_tt_far + 1.0):.4f})")
+          f"(delta = {abs(g_tt_far + 1.0):.4f})")
     print(f"  [{'PASS' if grr_monotone else 'FAIL'}]  "
           f"g_rr monotonically decreasing from source")
 

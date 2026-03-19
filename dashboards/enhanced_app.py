@@ -268,7 +268,37 @@ def update_simulation_status(n_intervals, current_status, current_results, confi
 
     # Check if subprocess finished
     if _sim_proc is not None and _sim_proc.poll() is not None:
+        exit_code = _sim_proc.returncode
         full_output = "\n".join(_sim_log_lines)
+
+        # ── Detect hard crash (missing module, import error, etc.) ──────────
+        if exit_code != 0:
+            # Extract the most useful error line from the log
+            error_lines = [l for l in _sim_log_lines
+                           if any(k in l for k in ("Error", "error", "Traceback", "No module"))]
+            if error_lines:
+                err_summary = error_lines[-1].strip()
+            else:
+                err_summary = f"Process exited with code {exit_code}"
+
+            # Special-case the most common culprit
+            if "No module named 'torch'" in full_output:
+                err_summary = ("torch not installed — run:  "
+                               "pip install torch --index-url https://download.pytorch.org/whl/cpu")
+            elif "No module named 'pennylane'" in full_output:
+                err_summary = "pennylane not installed — run:  pip install pennylane"
+            elif "No module named" in full_output:
+                import re as _re
+                m = _re.search(r"No module named '([^']+)'", full_output)
+                if m:
+                    err_summary = f"Missing package: {m.group(1)} — run:  pip install {m.group(1)}"
+
+            return {
+                "running": False, "progress": 0,
+                "message": err_summary,
+                "error": True, "completed": False,
+            }, current_results
+
         results = _parse_sim_output(full_output, config)
         return {
             "running": False, "progress": 100,
@@ -522,6 +552,26 @@ def start_simulation(
         "--no-plot",
         "--device", "cpu",
     ]
+
+    # ── Pre-flight: verify critical imports exist before spawning subprocess ──
+    _REQUIRED = ["torch", "numpy", "scipy"]
+    _missing = []
+    for _pkg in _REQUIRED:
+        result = subprocess.run(
+            [sys.executable, "-c", f"import {_pkg}"],
+            capture_output=True, timeout=10,
+        )
+        if result.returncode != 0:
+            _missing.append(_pkg)
+    if _missing:
+        _install_hint = f"pip install {' '.join(_missing)}"
+        if "torch" in _missing:
+            _install_hint = ("pip install torch --index-url https://download.pytorch.org/whl/cpu  "
+                             f"  &&  pip install {' '.join(m for m in _missing if m != 'torch')}"
+                             if len(_missing) > 1 else
+                             "pip install torch --index-url https://download.pytorch.org/whl/cpu")
+        msg = f"Missing packages: {', '.join(_missing)}.  Run:  {_install_hint}"
+        return config, {"running": False, "progress": 0, "message": msg, "error": True}, None
 
     _sim_log_lines.clear()
     while not _sim_log_queue.empty():
