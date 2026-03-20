@@ -313,7 +313,21 @@ def update_simulation_status(n_intervals, current_status, current_results, confi
             msg = line.strip()
             break
 
-    return {"running": True, "progress": progress, "message": msg}, current_results
+    # Bug 3 fix: stream partial loss data so charts populate during the run
+    partial_results = current_results
+    partial_output = "\n".join(_sim_log_lines)
+    iter_loss_pairs = re.findall(r"iter\s+(\d+)\s+loss=([\d.e+\-]+)", partial_output)
+    if iter_loss_pairs:
+        p_iters  = [int(p[0])   for p in iter_loss_pairs]
+        p_losses = [float(p[1]) for p in iter_loss_pairs]
+        partial_results = dict(current_results) if current_results else {}
+        partial_results["history"] = dict(partial_results.get("history", {}))
+        partial_results["history"]["iterations"]    = p_iters
+        partial_results["history"]["total_loss"]    = p_losses
+        partial_results["history"]["einstein_loss"] = [l * 0.65 for l in p_losses]
+        partial_results["history"]["entropy_loss"]  = [l * 0.35 for l in p_losses]
+
+    return {"running": True, "progress": progress, "message": msg}, partial_results
 
 def _parse_sim_output(output: str, config: dict) -> dict:
     """Parse schwarzschild_test.py stdout into the results dict used by all callbacks."""
@@ -321,8 +335,15 @@ def _parse_sim_output(output: str, config: dict) -> dict:
     initial_state = config.get("initial_state", "bell")
     steps = config.get("optimization", {}).get("steps", 300)
 
-    # Parse iter losses
-    losses = [float(m.group(1)) for m in re.finditer(r"loss=([\d.e+\-]+)", output)]
+    # Parse iter/loss pairs — each printed line has both on the same line
+    iter_loss_pairs = re.findall(r"iter\s+(\d+)\s+loss=([\d.e+\-]+)", output)
+    if iter_loss_pairs:
+        iters  = [int(p[0])   for p in iter_loss_pairs]
+        losses = [float(p[1]) for p in iter_loss_pairs]
+    else:
+        # Fallback: loss-only lines (no iter prefix)
+        losses = [float(m.group(1)) for m in re.finditer(r"loss=([\d.e+\-]+)", output)]
+        iters  = list(range(0, len(losses) * 50, 50))  # assume every-50 default
     # Parse r_s, Pearson, verdict
     rs_match      = re.search(r"r_s\s*=\s*([\d.]+)", output)
     pearson_match = re.search(r"Pearson r\(g_tt[^)]*\)\s*=\s*([\d.]+)", output)
@@ -339,6 +360,7 @@ def _parse_sim_output(output: str, config: dict) -> dict:
     results["log"] = output
 
     if losses:
+        results["history"]["iterations"]    = iters
         results["history"]["total_loss"]    = losses
         results["history"]["einstein_loss"] = [l * 0.65 for l in losses]
         results["history"]["entropy_loss"]  = [l * 0.35 for l in losses]
@@ -359,6 +381,7 @@ def _parse_sim_output(output: str, config: dict) -> dict:
                 "config": {k: v for k, v in results["config"].items()
                            if isinstance(v, (str, int, float, bool, dict))},
                 "history": {
+                    "iterations":    results["history"]["iterations"][:500],
                     "total_loss":    results["history"]["total_loss"][:500],
                     "einstein_loss": results["history"]["einstein_loss"][:500],
                     "entropy_loss":  results["history"]["entropy_loss"][:500],
@@ -966,16 +989,34 @@ def update_summary_table(results):
         analysis = results.get("analysis", {})
         area = analysis.get("area_law", {})
         history = results.get("history", {})
+        schw = results.get("schwarzschild", {})
         final_loss = history.get("total_loss", [None])[-1]
+        r_s = schw.get("r_s", None)
+        pearson = schw.get("pearson", None)
+        verdict = schw.get("verdict", None)
+        # Count PASS/FAIL from raw log if available
+        log = results.get("log", "")
+        passes = log.count("[PASS]")
+        fails  = log.count("[FAIL]")
         rows = [
-            ("Area Law Coefficient", f"{area.get('area_law_coefficient', 0):.4f}",
+            ("Schwarzschild Radius (r_s)",
+             f"{r_s:.4f}" if r_s is not None else "—",
+             "Fitted horizon radius from metric optimization"),
+            ("Pearson r (g_tt)",
+             f"{pearson:.4f}" if pearson is not None else "—",
+             "Correlation with analytical Schwarzschild g_tt"),
+            ("Verdict",
+             verdict if verdict else "—",
+             f"Qualitative checks — {passes} PASS / {fails} FAIL"),
+            ("Final Loss",
+             f"{final_loss:.4e}" if final_loss is not None else "—",
+             "Einstein residual at convergence"),
+            ("Area Law Coefficient",
+             f"{area.get('area_law_coefficient', 0):.4f}",
              "Proportionality constant between entropy and area"),
-            ("R² Value", f"{area.get('r_squared', 0):.4f}",
+            ("R² Value",
+             f"{area.get('r_squared', 0):.4f}",
              "Goodness of fit for the area law"),
-            ("Final Loss", f"{final_loss:.4e}" if final_loss is not None else "—",
-             "Final value of the loss function"),
-            ("Entropy Total", f"{analysis.get('entropy_components', {}).get('total', 0):.4f}",
-             "Total entanglement entropy"),
         ]
     return dbc.Table(
         [
@@ -1110,15 +1151,24 @@ def update_real_time_metrics(n_intervals, status, plot_style):
         return create_real_time_metrics_figure(None, plot_style)
 
     losses, timestamps = [], []
-    now = time.time()
-    for i, line in enumerate(_sim_log_lines):
-        m_loss = re.search(r"loss=([\d.e+\-]+)", line)
-        if m_loss:
+    iter_loss_pairs = re.findall(r"iter\s+(\d+)\s+loss=([\d.e+\-]+)", "\n".join(_sim_log_lines))
+    if iter_loss_pairs:
+        for iter_num, loss_val in iter_loss_pairs:
             try:
-                losses.append(float(m_loss.group(1)))
-                timestamps.append(now - (len(_sim_log_lines) - i))
+                timestamps.append(int(iter_num))
+                losses.append(float(loss_val))
             except ValueError:
                 pass
+    else:
+        # Fallback: use sequential index if no iter prefix
+        for i, line in enumerate(_sim_log_lines):
+            m_loss = re.search(r"loss=([\d.e+\-]+)", line)
+            if m_loss:
+                try:
+                    losses.append(float(m_loss.group(1)))
+                    timestamps.append(i * 50)
+                except ValueError:
+                    pass
 
     if not losses:
         return create_real_time_metrics_figure(None, plot_style)
@@ -1250,6 +1300,18 @@ def update_simulation_log(n_intervals, clear_clicks, current_log, status):
         return ""
     return "\n".join(_sim_log_lines[-200:]) if _sim_log_lines else (current_log or "")
 
+# BUG-C fix: auto-scroll simulation log to bottom whenever its value changes
+app.clientside_callback(
+    """function(v) {
+        var el = document.getElementById('simulation-log');
+        if (el) el.scrollTop = el.scrollHeight;
+        return window.dash_clientside.no_update;
+    }""",
+    Output("simulation-log", "style"),
+    Input("simulation-log", "value"),
+    prevent_initial_call=True,
+)
+
 # Callback to download simulation log
 @app.callback(
     Output("download-log-file", "data"),
@@ -1272,4 +1334,4 @@ if __name__ == "__main__":
     print("\nStarting dashboard server...")
     print("Open your web browser and navigate to: http://127.0.0.1:8050/")
     print("\nPress Ctrl+C to stop the server.")
-    app.run(debug=True, port=8050)
+    app.run(debug=True, port=8050, threaded=True)

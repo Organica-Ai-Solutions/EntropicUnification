@@ -86,7 +86,7 @@ def create_enhanced_loss_curves(data, plot_style="plotly_dark"):
         )
     
     history = data["history"]
-    iterations = list(range(len(history["total_loss"])))
+    iterations = history.get("iterations", list(range(len(history["total_loss"]))))
     
     # Create figure with secondary y-axis
     fig = make_subplots(specs=[[{"secondary_y": True}]])
@@ -156,7 +156,7 @@ def create_enhanced_loss_curves(data, plot_style="plotly_dark"):
     # Add annotations for key points
     min_loss_idx = history["total_loss"].index(min(history["total_loss"]))
     fig.add_annotation(
-        x=min_loss_idx,
+        x=iterations[min_loss_idx],
         y=history["total_loss"][min_loss_idx],
         text="Minimum Loss",
         showarrow=True,

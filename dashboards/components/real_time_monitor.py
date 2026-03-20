@@ -375,7 +375,7 @@ def create_real_time_metrics_figure(data=None, plot_style="plotly_dark"):
     
     # Update axes
     fig.update_xaxes(
-        title_text="Time",
+        title_text="Iteration",
         row=1, col=1,
         showgrid=True,
         gridwidth=1,
