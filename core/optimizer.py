@@ -159,8 +159,13 @@ class EntropicOptimizer:
         self.best_metric = None
         self.steps_without_improvement = 0
         
-        # Current learning rate
-        self.current_lr = config.lr_schedule["initial_lr"]
+        # Current learning rate.  AdvancedOptimizerConfig shadows lr_schedule
+        # with an LRScheduleType enum (the subclass manages its own schedule),
+        # so fall back to the flat learning_rate field in that case.
+        if isinstance(config.lr_schedule, dict):
+            self.current_lr = config.lr_schedule["initial_lr"]
+        else:
+            self.current_lr = config.learning_rate
         
         # Results path
         self.results_path = Path(config.results_path)
@@ -255,6 +260,9 @@ class EntropicOptimizer:
         Args:
             step: Current optimization step
         """
+        if not isinstance(self.config.lr_schedule, dict):
+            # Subclass config manages its own schedule (see AdvancedOptimizerConfig)
+            return
         if self.optimization_strategy == OptimizationStrategy.ADAPTIVE:
             # Exponential decay schedule
             self.current_lr = self.config.lr_schedule["initial_lr"] * (

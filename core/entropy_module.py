@@ -207,6 +207,99 @@ class EntropyModule:
 
         return grad
 
+    def entropy_profile(
+        self,
+        state: torch.Tensor,
+        qubit_positions: Sequence[float],
+        r_grid: torch.Tensor,
+        interpolation: str = "linear",
+    ) -> torch.Tensor:
+        """Compute the entropy field S(r) genuinely from the quantum state.
+
+        Qubits live at physical positions on the lattice coordinate.  For a
+        cut radius r, region A is the set of qubits at positions <= r, and
+        S(r) is the entanglement entropy of A.  Every value comes from a
+        partial trace of the actual state — no spatial profile is inserted
+        by hand.  For a pure state, S(r) = 0 both below the first qubit
+        (empty region) and above the last (full region), so any localized
+        bump in S(r) is an emergent property of the entanglement structure.
+
+        Between qubit positions S(r) is exactly constant (moving the cut
+        without crossing a qubit changes nothing).  interpolation="linear"
+        connects the midpoints between consecutive qubits linearly so the
+        lattice derivative is finite; this is a declared discretization
+        choice, not physics.  interpolation="steps" keeps the honest
+        piecewise-constant profile.
+
+        Args:
+            state: Pure quantum state vector (2**n amplitudes).
+            qubit_positions: Physical position of each qubit i on the lattice
+                coordinate; length must equal num_qubits.
+            r_grid: Lattice points at which to evaluate S(r), shape (N,).
+            interpolation: "linear" or "steps".
+
+        Returns:
+            S(r) with shape (N,), dtype float64 (detached — the source field
+            is held fixed while the metric is optimized).
+        """
+        n = self.quantum_engine.num_qubits
+        positions = [float(p) for p in qubit_positions]
+        if len(positions) != n:
+            raise ValueError(
+                f"Need one position per qubit: got {len(positions)} positions "
+                f"for {n} qubits"
+            )
+        if interpolation not in ("linear", "steps"):
+            raise ValueError("interpolation must be 'linear' or 'steps'")
+
+        # Sort qubits by position; cut k means region A = first k qubits.
+        order = sorted(range(n), key=lambda i: positions[i])
+        sorted_pos = [positions[i] for i in order]
+
+        # S_k = entanglement entropy with region A = k innermost qubits.
+        # S_0 = S_n = 0 for a pure state; interior values are computed
+        # from partial traces of the actual state.
+        cut_entropies = [0.0]
+        with torch.no_grad():
+            for k in range(1, n):
+                partition = order[:k]
+                s_k = self.compute_entanglement_entropy(
+                    state, partition, include_edge=False
+                )
+                cut_entropies.append(float(s_k.item()))
+        cut_entropies.append(0.0)
+
+        r_np = r_grid.detach().cpu().to(torch.float64)
+        profile = torch.zeros_like(r_np)
+
+        if interpolation == "steps":
+            # S(r) = S_k where k = number of qubits at position <= r
+            for j, r in enumerate(r_np.tolist()):
+                k = sum(1 for p in sorted_pos if p <= r)
+                profile[j] = cut_entropies[k]
+        else:
+            # Nodes at qubit positions carry the entropy of cutting just
+            # past that qubit; linear interpolation between nodes.
+            node_x = torch.tensor(sorted_pos, dtype=torch.float64)
+            node_s = torch.tensor(cut_entropies[1:], dtype=torch.float64)
+            for j, r in enumerate(r_np.tolist()):
+                if r <= node_x[0]:
+                    # Below the innermost qubit the region is empty: ramp
+                    # from 0 at r_min edge is ill-defined, so hold S = 0
+                    # until the first qubit, then the cut includes it.
+                    profile[j] = 0.0
+                elif r >= node_x[-1]:
+                    profile[j] = node_s[-1]  # = 0 for a pure state
+                else:
+                    idx = int(torch.searchsorted(node_x, torch.tensor(r), right=True)) - 1
+                    x0, x1 = node_x[idx], node_x[idx + 1]
+                    s0, s1 = node_s[idx], node_s[idx + 1]
+                    t = (r - x0) / (x1 - x0) if x1 > x0 else 0.0
+                    profile[j] = s0 + t * (s1 - s0)
+
+        return profile.to(dtype=r_grid.dtype if r_grid.is_floating_point() else torch.float64,
+                          device=r_grid.device)
+
     def entropy_flow(
         self, 
         states: torch.Tensor, 

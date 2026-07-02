@@ -14,6 +14,8 @@ This implementation includes:
 
 from __future__ import annotations
 
+import math
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Optional, Tuple, Union
@@ -22,6 +24,7 @@ import torch
 
 from .entropy_module import EntropyModule
 from .geometry_engine import GeometryEngine
+from .utils.finite_difference import fixed_finite_difference
 
 
 class StressTensorFormulation(str, Enum):
@@ -59,10 +62,10 @@ class CouplingLayer:
         entropy_module: EntropyModule,
         coupling_strength: float = 1.0,
         stress_form: Union[str, StressTensorFormulation] = StressTensorFormulation.JACOBSON,
-        include_edge_modes: bool = True,
+        include_edge_modes: bool = False,
         include_higher_curvature: bool = False,
         conformal_invariance: bool = False,
-        hbar_factor: float = 1.0/(2.0*3.14159),  # ℏ/(2π) in natural units
+        hbar_factor: float = 1.0 / (2.0 * math.pi),  # ℏ/(2π) in natural units
     ) -> None:
         """Initialize the coupling layer.
         
@@ -71,7 +74,9 @@ class CouplingLayer:
             entropy_module: The entropy module for entanglement calculations
             coupling_strength: Overall coupling strength (analogous to 8πG)
             stress_form: Which formulation of stress-energy tensor to use
-            include_edge_modes: Whether to include edge mode contributions
+            include_edge_modes: Whether to add the toy edge-mode term. This is
+                a hardcoded Λ-like correction (0.01 · ℏ/2π · g_μν), NOT a
+                derived edge-mode stress tensor — off by default.
             include_higher_curvature: Whether to include higher-order curvature terms
             conformal_invariance: Whether to assume conformal invariance
             hbar_factor: Factor of ℏ/(2π) in natural units
@@ -111,10 +116,42 @@ class CouplingLayer:
             
         Returns:
             Tuple of (stress_tensor, edge_mode_contribution)
+
+        Warning:
+            This method interprets a gradient taken with respect to *quantum
+            state amplitudes* as if its first `dim` components were spacetime
+            derivatives ∇_μ S.  That identification is a demo heuristic with
+            no physical justification.  For a physically meaningful stress
+            tensor built from an entropy field S(x) on the lattice, use
+            compute_stress_tensor_field() instead.
         """
+        if not getattr(self, "_projection_warned", False):
+            warnings.warn(
+                "compute_entropy_stress_tensor() projects a state-space "
+                "gradient onto spacetime indices — a demo heuristic, not "
+                "physics. Prefer compute_stress_tensor_field() with a "
+                "spatial entropy profile.",
+                stacklevel=2,
+            )
+            self._projection_warned = True
+
         if metric is None:
             metric = self.geometry.metric
-            
+
+        # Inverse metric for covariant contraction (∇S)² = g^μν ∂_μS ∂_νS.
+        # An earlier version used the Euclidean dot product, which breaks
+        # the trace identities every formulation below relies on.
+        try:
+            metric_inv = torch.linalg.inv(metric)
+        except Exception:
+            metric_inv = torch.linalg.pinv(metric)
+
+        # State-space gradients are complex (d S / d amplitude); only the
+        # real part is used in the heuristic spacetime projection below.
+        if entropy_gradient.is_complex():
+            entropy_gradient = entropy_gradient.real
+        entropy_gradient = entropy_gradient.to(dtype=metric.dtype)
+
         edge_contribution = None
         
         # Compute the basic stress tensor based on selected formulation
@@ -134,7 +171,7 @@ class CouplingLayer:
             else:
                 entropy_grad_spacetime = entropy_gradient
                 
-            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
+            contraction = entropy_grad_spacetime @ metric_inv @ entropy_grad_spacetime
             T = torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
             T = self.hbar_factor * (T - 0.5 * metric * contraction)
             
@@ -215,7 +252,7 @@ class CouplingLayer:
             else:
                 entropy_grad_spacetime = entropy_gradient
 
-            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
+            contraction = entropy_grad_spacetime @ metric_inv @ entropy_grad_spacetime
             T = torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
 
             # Basic Jacobson term
@@ -259,7 +296,7 @@ class CouplingLayer:
             else:
                 entropy_grad_spacetime = entropy_gradient
 
-            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
+            contraction = entropy_grad_spacetime @ metric_inv @ entropy_grad_spacetime
             T = self.hbar_factor * (
                 torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
                 - 0.5 * metric * contraction
@@ -292,7 +329,7 @@ class CouplingLayer:
             else:
                 entropy_grad_spacetime = entropy_gradient
 
-            contraction = torch.dot(entropy_grad_spacetime, entropy_grad_spacetime)
+            contraction = entropy_grad_spacetime @ metric_inv @ entropy_grad_spacetime
             T = self.hbar_factor * (
                 torch.outer(entropy_grad_spacetime, entropy_grad_spacetime)
                 - (1.0 / dim) * metric * contraction
@@ -319,6 +356,96 @@ class CouplingLayer:
         T = self.coupling_strength * T
             
         return T, edge_contribution
+
+    def compute_stress_tensor_field(
+        self,
+        entropy_field: torch.Tensor,
+        metric_field: Optional[torch.Tensor] = None,
+        formulation: Optional[Union[str, StressTensorFormulation]] = None,
+    ) -> torch.Tensor:
+        """Compute T_μν(x) over the whole lattice from an entropy field S(x).
+
+        This is the physically meaningful path.  S(x) must be a scalar field
+        on the lattice — e.g. the entanglement entropy of the qubits inside
+        radius x, computed from an actual quantum state — and ∇_μ S is its
+        honest spacetime derivative: the field is static, so ∂_t S = 0, and
+        ∂_1 S is the dx-normalized lattice finite difference.  Nothing about
+        the spatial structure of the source is inserted by hand, and no
+        state-space gradient components are relabeled as spacetime indices.
+
+        All contractions use the inverse metric, so the MASSLESS form is
+        traceless exactly and identically: g^μν T_μν = 0 by construction.
+
+        Args:
+            entropy_field: S(x), shape (lattice_size,).
+            metric_field: g_μν(x), shape (lattice_size, dim, dim); defaults to
+                the geometry engine's current metric field (autograd flows
+                through it).
+            formulation: Stress tensor formulation; defaults to self.stress_form.
+
+        Returns:
+            T_μν(x) with shape (lattice_size, dim, dim).
+        """
+        g = self.geometry.metric_field if metric_field is None else metric_field
+        dim = self.geometry.dimensions
+        n_points = g.shape[0]
+        dx = float(self.geometry.dx)
+
+        if entropy_field.shape[0] != n_points:
+            raise ValueError(
+                f"entropy_field has {entropy_field.shape[0]} points but the "
+                f"lattice has {n_points}"
+            )
+
+        form = self.stress_form if formulation is None else (
+            StressTensorFormulation(formulation.lower())
+            if isinstance(formulation, str) else formulation
+        )
+
+        s_field = entropy_field.to(dtype=g.dtype, device=g.device)
+
+        # ∇_μ S: static scalar field varying along the lattice coordinate x¹
+        dS = fixed_finite_difference(s_field, order=1, axis=0, dx=dx)  # (N,)
+        grads = torch.zeros((n_points, dim), dtype=g.dtype, device=g.device)
+        grads[:, 1] = dS
+
+        g_inv = torch.linalg.inv(g)                                    # (N, d, d)
+        outer = torch.einsum("ni,nj->nij", grads, grads)               # (N, d, d)
+        # (∇S)² = g^μν ∂_μS ∂_νS — covariant contraction
+        contraction = torch.einsum("nab,na,nb->n", g_inv, grads, grads)
+
+        if form == StressTensorFormulation.MASSLESS:
+            # T_μν = (ℏ/2π)[∂_μS ∂_νS − (1/n) g_μν (∇S)²] — traceless exactly
+            T = self.hbar_factor * (
+                outer - (1.0 / dim) * g * contraction.view(n_points, 1, 1)
+            )
+        elif form in (StressTensorFormulation.LAGRANGIAN,
+                      StressTensorFormulation.JACOBSON):
+            # T_μν = (ℏ/2π)[∂_μS ∂_νS − (1/2) g_μν (∇S)²]
+            T = self.hbar_factor * (
+                outer - 0.5 * g * contraction.view(n_points, 1, 1)
+            )
+        elif form == StressTensorFormulation.CANONICAL:
+            T = self.hbar_factor * outer
+        elif form == StressTensorFormulation.FAULKNER:
+            # T_μν = (ℏ/2π)[∇_μ∇_νS − (□S) g_μν] with the honest spatial
+            # Hessian: for a static field on a 1-D lattice the only nonzero
+            # second derivative is ∂₁∂₁S.
+            d2S = fixed_finite_difference(s_field, order=2, axis=0, dx=dx)
+            hessian = torch.zeros((n_points, dim, dim), dtype=g.dtype, device=g.device)
+            hessian[:, 1, 1] = d2S
+            box_S = torch.einsum("nab,nab->n", g_inv, hessian)
+            T = self.hbar_factor * (hessian - box_S.view(n_points, 1, 1) * g)
+        elif form == StressTensorFormulation.MODIFIED:
+            ricci = self.geometry.compute_ricci_tensor(g)
+            alpha = 0.1  # non-conformality parameter
+            T = self.hbar_factor * (
+                outer - 0.5 * g * contraction.view(n_points, 1, 1) + alpha * ricci
+            )
+        else:
+            raise ValueError(f"Unknown stress tensor formulation: {form}")
+
+        return self.coupling_strength * T
 
     def compute_tracelessness_violation(
         self,

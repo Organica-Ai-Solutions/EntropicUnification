@@ -1,33 +1,33 @@
 """
 Schwarzschild Recovery Test — Hypothesis H3
 
-Tests whether a Bell state with Gaussian-localized spatial support drives the
-metric from flat Minkowski toward a Schwarzschild profile under entropic
-optimization.
-
-This is the flagship experiment of the EntropicUnification framework.
-If a localized maximally-entangled state produces a recognizable Schwarzschild
-metric profile, it is strong evidence that the entropic-gravity correspondence
-captures something physically real.
+Tests whether a localized entangled quantum state drives the metric from flat
+Minkowski toward a Schwarzschild-like profile under entropic optimization.
 
 Physical setup
 --------------
 - 1+1D spacetime (t, r), Lorentzian signature (-,+)
 - Spatial lattice:  r in [r_min, r_max],  N_LATTICE points
-- Entanglement source: Bell state |Ψ⟩ = (|00⟩+|11⟩)/√2 concentrated at r=0
-  via Gaussian profile  w(r) = exp(-r²/2σ²)
+- Entanglement source: a GHZ state on qubits placed at radial positions
+  clustered near r_min.  The entropy field S(r) is the entanglement entropy
+  of the qubits inside radius r, computed by partial trace of the actual
+  state at every lattice point.  Its spatial structure is NOT inserted by
+  hand: S(r) = 0 below the innermost qubit and above the outermost (pure
+  state), and the localized bump in between is an emergent property of the
+  entanglement structure.  (Earlier versions multiplied a state-space
+  gradient by a hand-placed Gaussian, which made the recovered geometry a
+  restatement of the input profile; results produced that way are invalid.)
 - Initial metric: flat Minkowski  g_munu = diag(-1, +1)
 - Stress tensor: MASSLESS formulation (traceless, E=pc constraint satisfied)
 
-Expected Schwarzschild signature after convergence
----------------------------------------------------
-  g_tt(r) -> -(1 - r_s/r)         [deepens toward origin]
-  g_rr(r) -> +(1 - r_s/r)^{-1}   [grows positive toward origin]
-  r_s ∝ S_Bell                    (Bekenstein-Hawking-like proportionality)
+What would count as a Schwarzschild signature
+---------------------------------------------
+  g_tt(r) -> -(1 - r_s/r)         [less negative toward the source]
+  g_rr(r) -> +(1 - r_s/r)^{-1}   [grows positive toward the source]
 
-Even a *qualitative* match — correct sign structure, monotonic profile,
-asymptotic flatness — constitutes a significant result.  A quantitative fit
-of r_s to S_Bell would be remarkable.
+The checks below report whether the optimized metric shows this structure.
+A negative result is a result: it means the entropic field equation, honestly
+implemented, does not reproduce Schwarzschild in this toy setting.
 
 Usage
 -----
@@ -67,8 +67,9 @@ DEFAULT_CFG = {
     "r_min": 0.5,            # Closest approach (avoid r=0 singularity)
     "r_max": 5.0,            # Far-field boundary
     # Quantum source
-    "num_qubits": 4,         # Bell-like state; entanglement S = log(2) ≈ 0.693
-    "localization_sigma": 0.8,  # Gaussian width of entropy source (in lattice units)
+    "num_qubits": 4,         # GHZ state; any bipartition has S = log(2) ≈ 0.693
+    "cluster_width": 1.5,    # radial span of the qubit cluster (starts at r_min)
+    "interpolation": "linear",  # S(r) interpolation between qubit positions
     # Optimization
     "n_iterations": 300,
     "learning_rate": 1e-3,
@@ -160,33 +161,39 @@ def run_schwarzschild_test(cfg: dict) -> dict:
     )
 
     # ------------------------------------------------------------------
-    # 2.  Prepare the Bell state and base entropy gradient
+    # 2.  Prepare the GHZ state and place the qubits on the radial grid
     # ------------------------------------------------------------------
-    bell = qe.bell_state()  # (|00...0⟩ + |11...1⟩)/√2
+    ghz = qe.ghz_state()  # (|00...0⟩ + |11...1⟩)/√2
 
-    # Partition: keep first half of qubits, trace out second half
-    n_half = cfg["num_qubits"] // 2
-    partition = list(range(n_half))
-
-    # Pre-compute the base entropy gradient (state-space direction)
-    bell_grad = entropy_module.entropy_gradient(bell, partition).real.detach().to(device)
-    S_bell = entropy_module.compute_entanglement_entropy(bell, partition).item()
-    print(f"Bell state entanglement entropy S = {S_bell:.6f} (log2 max = {np.log(2):.6f})")
-    print(f"Base gradient norm: {torch.norm(bell_grad).item():.6f}\n")
-
-    # ------------------------------------------------------------------
-    # 3.  Build radial grid and Gaussian spatial weights
-    # ------------------------------------------------------------------
     r_grid = torch.linspace(cfg["r_min"], cfg["r_max"], cfg["lattice_size"],
                             dtype=dtype, device=device)
-    # Normalized: σ in physical radial units
-    sigma = cfg["localization_sigma"]
-    weights = torch.exp(-r_grid**2 / (2.0 * sigma**2))  # shape: (lattice_size,)
-    weights = weights / weights.max()  # normalize to [0,1]
 
-    print("Spatial entropy profile (weight at each r):")
-    for i in range(0, cfg["lattice_size"], cfg["lattice_size"] // 8):
-        print(f"  r={r_grid[i].item():.3f}  w={weights[i].item():.4f}")
+    # Qubits clustered near the inner boundary — their positions determine
+    # only WHERE entanglement lives, not the shape of S(r).
+    qubit_positions = np.linspace(
+        cfg["r_min"], cfg["r_min"] + cfg["cluster_width"], cfg["num_qubits"]
+    ).tolist()
+
+    # Reference entropy: any bipartition of a GHZ state gives log(2)
+    n_half = cfg["num_qubits"] // 2
+    S_bell = entropy_module.compute_entanglement_entropy(
+        ghz, list(range(n_half)), include_edge=False
+    ).item()
+    print(f"GHZ bipartition entropy S = {S_bell:.6f} (log 2 = {np.log(2):.6f})")
+    print(f"Qubit positions: {[f'{p:.3f}' for p in qubit_positions]}\n")
+
+    # ------------------------------------------------------------------
+    # 3.  Entropy field S(r) — computed from the state, not hand-placed
+    # ------------------------------------------------------------------
+    # S(r) = entanglement entropy of the qubits at positions <= r, from a
+    # partial trace of the actual GHZ state at each lattice point.
+    S_field = entropy_module.entropy_profile(
+        ghz, qubit_positions, r_grid, interpolation=cfg["interpolation"]
+    ).detach()
+
+    print("Emergent entropy profile S(r):")
+    for i in range(0, cfg["lattice_size"], max(1, cfg["lattice_size"] // 8)):
+        print(f"  r={r_grid[i].item():.3f}  S={S_field[i].item():.4f}")
     print()
 
     # ------------------------------------------------------------------
@@ -211,7 +218,6 @@ def run_schwarzschild_test(cfg: dict) -> dict:
     # ------------------------------------------------------------------
     dim = geometry.dimensions
     N   = cfg["lattice_size"]
-    hbar_factor = coupling.hbar_factor * coupling.coupling_strength
 
     loss_history = []
     trace_history = []
@@ -228,39 +234,14 @@ def run_schwarzschild_test(cfg: dict) -> dict:
         # G shape: (N, dim, dim)
         G_all = geometry.compute_einstein_tensor()   # uses metric_field
 
-        # --- Stress tensor T_munu vectorized over all N lattice points ---
-        # Project bell_grad (quantum state space) to spacetime dim
-        # (matches what coupling_layer does internally: truncate/pad to dim)
-        bg = bell_grad[:dim] if bell_grad.shape[0] >= dim else torch.cat(
-            [bell_grad, torch.zeros(dim - bell_grad.shape[0], dtype=bell_grad.dtype, device=device)]
-        )  # shape: (dim,)
-
-        # grads: (N, dim) — spatially weighted entropy gradient
-        grads = weights.unsqueeze(1) * bg.unsqueeze(0)   # (N, dim)
-
-        # outer products: (N, dim, dim)
-        outer = torch.einsum("ni,nj->nij", grads, grads)
-
-        # (∇S)² at each point: (N,)
-        contraction = torch.sum(grads ** 2, dim=1)
-
-        # metric field: (N, dim, dim)
+        # --- Stress tensor T_munu from the honest entropy field S(r) ---
+        # ∂_t S = 0 (static source), ∂_r S = dx-normalized lattice finite
+        # difference; contractions use g^μν.  For FAULKNER this uses the
+        # real spatial Hessian ∂²S/∂r², not an outer-product surrogate.
         g = geometry.metric_field
-
-        if cfg["stress_form"] == StressTensorFormulation.MASSLESS:
-            # T_munu = (hbar/2pi)[∂_mu S ∂_nu S - (1/n) g_munu (∇S)²]
-            T_all = hbar_factor * (outer - (1.0 / dim) * g * contraction.view(N, 1, 1))
-        elif cfg["stress_form"] == StressTensorFormulation.FAULKNER:
-            # Faulkner: T_munu = (hbar/2pi)[H_munu - (trH) g_munu]
-            # where H_munu = ∂_mu ∂_nu S is the Hessian.
-            # In the vectorized path we approximate H_munu ≈ ∂_mu S ∂_nu S
-            # (outer product of gradient — leading-order approximation).
-            # The trace-subtracted form is equivalent to massless in 2D.
-            box_S = contraction  # (N,) approximate d'Alembertian
-            T_all = hbar_factor * (outer - g * box_S.view(N, 1, 1))
-        else:
-            # LAGRANGIAN / JACOBSON / canonical: (1/2) prefactor
-            T_all = hbar_factor * (outer - 0.5 * g * contraction.view(N, 1, 1))
+        T_all = coupling.compute_stress_tensor_field(
+            S_field, metric_field=g, formulation=cfg["stress_form"]
+        )
 
         # --- Residual loss ---
         residual = G_all - T_all                     # (N, dim, dim)
@@ -493,8 +474,13 @@ def parse_args():
                         help="Number of radial lattice points")
     parser.add_argument("--lr", type=float, default=DEFAULT_CFG["learning_rate"],
                         help="Learning rate")
-    parser.add_argument("--sigma", type=float, default=DEFAULT_CFG["localization_sigma"],
-                        help="Gaussian localization width (radial units)")
+    parser.add_argument("--cluster-width", type=float, default=DEFAULT_CFG["cluster_width"],
+                        help="Radial span of the qubit cluster (starts at r_min)")
+    parser.add_argument("--qubits", type=int, default=DEFAULT_CFG["num_qubits"],
+                        help="Number of qubits in the GHZ source state")
+    parser.add_argument("--interpolation", type=str, default=DEFAULT_CFG["interpolation"],
+                        choices=["linear", "steps"],
+                        help="S(r) interpolation between qubit positions")
     parser.add_argument("--formulation", type=str, default="massless",
                         choices=["jacobson", "lagrangian", "massless", "canonical", "faulkner"],
                         help="Stress tensor formulation")
@@ -515,7 +501,9 @@ def main():
     cfg["n_iterations"] = args.iterations
     cfg["lattice_size"] = args.lattice
     cfg["learning_rate"] = args.lr
-    cfg["localization_sigma"] = args.sigma
+    cfg["cluster_width"] = args.cluster_width
+    cfg["num_qubits"] = args.qubits
+    cfg["interpolation"] = args.interpolation
     cfg["stress_form"] = StressTensorFormulation(args.formulation)
     cfg["plot"] = not args.no_plot
     cfg["save_dir"] = args.save_dir

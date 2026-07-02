@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2-blue" />
+  <img src="https://img.shields.io/badge/version-1.3-blue" />
   <img src="https://img.shields.io/badge/python-3.9%2B-green" />
   <img src="https://img.shields.io/badge/framework-PyTorch%20%7C%20PennyLane-orange" />
   <img src="https://img.shields.io/badge/status-active%20research-purple" />
@@ -24,112 +24,63 @@
 
 ## What This Is
 
-EntropicUnification investigates a fundamental question: **can spacetime geometry emerge from quantum information?**
+EntropicUnification is a **differentiable toy-model sandbox** inspired by a fundamental question: can spacetime geometry emerge from quantum information?
 
-The framework implements the conjecture that entanglement entropy gradients source spacetime curvature:
+The framework implements the conjecture that entanglement entropy gradients source spacetime curvature via an entropic stress tensor $T^{(\text{ent})}_{\mu\nu}$ built from $\nabla_\mu S$, where $S(x)$ is an entanglement entropy field computed from partial traces of an actual quantum state. The stress tensor's *form* follows from Hilbert variation of a scalar-field action (see [Theoretical Foundation](#theoretical-foundation)); whether entanglement entropy actually behaves as such a field is the conjecture under test, not a derived fact.
 
-$$G_{\mu\nu} \propto \nabla_\mu \nabla_\nu S_{\text{ent}}$$
-
-where $G_{\mu\nu}$ is the Einstein tensor and $S_{\text{ent}}$ is von Neumann entanglement entropy. This is not postulated — it is **derived** from a covariant action via Hilbert variation (see [Theoretical Foundation](#theoretical-foundation)).
-
-The result is a runnable physics experiment: quantum circuits evolve entanglement, entropy gradients drive metric optimization, and spacetime geometry is learned — not assumed.
+The pipeline is: quantum state → entropy field $S(r)$ (partial trace at every cut radius) → spatial gradient $\nabla S$ → stress tensor → metric optimization against the Einstein tensor on a 1-D lattice. It is a research testbed for exploring this idea numerically — **not** a validated theory of quantum gravity, and not evidence for one.
 
 ---
 
-## Key Results
+## Results Status (v1.3)
 
-### Area Law Confirmation
-Simulations consistently reproduce the expected linear relationship $S \propto A$. The fitted proportionality constant (≈ 0.25) closely approximates the theoretical Bekenstein-Hawking value of $\frac{1}{4}$ in natural units.
+**All quantitative results previously reported here (v1.2 and earlier) are withdrawn.**
 
-<p align="center">
-  <img src="docs/images/entropy_area_plot.jpg" width="500"/>
-</p>
+The v1.2 implementation had defects that invalidated its headline numbers:
 
-### Loss Convergence
-The multi-component loss (Einstein residual + entropy gradient alignment + regularity) converges stably across formulations, revealing multi-scale quantum-geometric coupling.
+1. **The spatial entropy profile was inserted by hand.** The "entropy gradient" was a gradient with respect to quantum state *amplitudes*, relabeled as spacetime components and multiplied by a hand-placed Gaussian $w(r)$. The recovered $g_{tt}$ well was therefore a restatement of the input Gaussian, not an emergent property of entanglement. The Schwarzschild fits, the $r_s/S$ ratios, and the entanglement-scaling curves all inherited this circularity.
+2. **Curvature was not GR curvature.** Christoffel symbols copied the lattice derivative into *every* coordinate slot; finite differences omitted the $1/dx$ normalization; and Riemann-tensor symmetries were projected onto the mixed-index tensor (where they do not hold), silently corrupting the result.
+3. **Contractions used the Euclidean dot product** instead of $g^{\mu\nu}\partial_\mu S\,\partial_\nu S$, breaking the trace identities the MASSLESS formulation depends on.
 
-<p align="center">
-  <img src="docs/images/loss_curves.jpg" width="500"/>
-</p>
+v1.3 fixes all of the above:
 
-### Entropy Components
-Bulk quantum correlations, edge modes, and UV regularization contribute distinct signatures to total entanglement entropy.
+- $S(r)$ is now computed **from the quantum state**: qubits are placed at radial positions, and $S(r)$ is the entanglement entropy of the qubits inside radius $r$, obtained by partial trace at every lattice point. For a pure state $S(r)$ vanishes below the innermost and above the outermost qubit — any localized bump is emergent, not assumed.
+- Christoffel, Riemann, Ricci, and Einstein tensors are computed honestly for the declared metric ansatz (static, varying along the single lattice coordinate), with dx-normalized derivatives and **no symmetry projection** — `riemann_identity_violations()` reports identity violations instead of hiding them.
+- All contractions use the inverse metric; the MASSLESS stress tensor is traceless exactly, by construction.
+- The FAULKNER formulation uses the real spatial Hessian $\partial_r^2 S$, not an outer-product surrogate.
 
-<p align="center">
-  <img src="docs/images/entropy_components.jpg" width="500"/>
-</p>
-
-### Schwarzschild Recovery Test — H3 *(v1.2, GTX 1660 Ti)*
-
-A Bell state ($S_{\text{Bell}} = \ln 2 \approx 0.693$) with Gaussian spatial profile is optimized over a 32-point radial lattice for 300 iterations. Three formulations compared:
-
-| Formulation | $r_s$ fit | $r_s / S_{\text{Bell}}$ | Pearson $g_{tt}$ | Verdict |
-|-------------|-----------|------------------------|-----------------|---------|
-| MASSLESS | 0.4975 | 0.718 | **0.779** | 2/3 ✅ |
-| LAGRANGIAN | 0.4975 | 0.718 | **0.779** | 2/3 ✅ |
-| FAULKNER | 0.3876 | 0.559 | **0.793** | 2/3 ✅ |
-
-All three formulations pass: ✅ $g_{tt}$ less negative near source (correct Schwarzschild sign) + ✅ asymptotic flatness within 12%. The Bekenstein-Hawking-like ratio $r_s / S_{\text{Bell}} \approx 0.56$–$0.72$ is consistent across formulations.
-
-Extended run (1000 iterations, lattice 64): $g_{tt}$ deepens to $-0.347$ near source vs $-1.136$ far field, Pearson $r(g_{tt}) = 0.784$, $r_s = 0.448$, $r_s/S_{\text{Bell}} = 0.647$.
+Re-run experiments with:
 
 ```bash
-python examples/schwarzschild_test.py --iterations 1000 --lattice 64 --formulation massless --device auto
+python examples/schwarzschild_test.py --iterations 1000 --lattice 64
+python examples/scaling_experiment.py --iterations 1000
 ```
 
-<p align="center">
-  <img src="docs/images/metric_evolution.jpg" width="500"/>
-</p>
+and report whatever they produce — including a null result. A negative outcome under the honest implementation is a meaningful data point about the conjecture in this toy setting.
 
-<p align="center">
-  <img src="docs/images/schwarzschild_well_3d.png" width="600"/>
-  <br/><em>3D metric well — g<sub>tt</sub>(x,y) surface learned from a Bell state. Amber ring: fitted r<sub>s</sub> = 0.448.</em>
-</p>
+### First v1.3 runs (July 2026, CPU, honest pipeline)
 
-### Entanglement Scaling ($r_s$ vs $S_{\text{ent}}$) *(v1.2)*
+**Schwarzschild test** (1000 iterations, lattice 64, MASSLESS): 2/3 qualitative checks pass — $g_{tt}$ has the correct sign structure (less negative toward the source) and rough asymptotic flatness, but $g_{rr}$ moves the *wrong* way. Pearson correlation with a fitted Schwarzschild profile: $r(g_{tt}) = 0.50$, $r(g_{rr}) = 0.02$. The v1.2 claim of 0.78 does not survive the corrections. Tracelessness violation is now at machine precision (~1e-17), as it should be by construction.
 
-Sweeping $|\psi(\theta)\rangle = \cos\theta|00\rangle + \sin\theta|11\rangle$ from near-product to maximally entangled:
+**Entanglement scaling** (1000 iterations, lattice 32): no clean $r_s \propto S$ relation — a through-origin linear fit gives negative $R^2$. Short runs (50 iterations) look linear, but the relationship does not stabilize with convergence. The v1.2 "genuinely non-linear, monotonically decreasing ratio" claim also does not reproduce.
 
-| $S_{\text{ent}}$ | $r_s$ (300 iters) | $r_s$ (1000 iters) | ratio (1000) |
-|-----------------|-------------------|---------------------|--------------|
-| 0.417 | 0.699 | **1.213** | 2.91 |
-| 0.562 | 0.686 | **1.000** | 1.78 |
-| 0.645 | 0.648 | **1.021** | 1.58 |
-| 0.693 | 0.497 | **0.676** | 0.97 |
-
-The relationship is **genuinely non-linear** — confirmed at 1000 iterations. Higher entanglement produces a *smaller* apparent $r_s$ (more compact geometry). The ratio decreases monotonically from 2.91 to 0.97 as $S$ increases from 0.417 to 0.693. This is **not** an under-convergence artifact: $r_s$ values grew substantially from 300→1000 iters across all states, but the monotonically decreasing ratio pattern is stable.
-
-Interpretation: higher entanglement drives stronger stress tensor gradients that produce more *concentrated* geometric deformation — consistent with holographic strong-coupling behavior where information density increases on smaller boundary surfaces. This is a departure from the classical Bekenstein-Hawking $r_s \propto M$ relation and may reflect the 2D nature of the current implementation.
-
-```bash
-python examples/scaling_experiment.py --iterations 1000 --device auto
-```
-
-<p align="center">
-  <img src="docs/images/scaling_3d.png" width="600"/>
-  <br/><em>3D scaling plot — r<sub>s</sub> vs S<sub>ent</sub> at 300 (teal) and 1000 (amber) iterations. Coral diamond: crossover at S ≈ 0.645.</em>
-</p>
-
-<p align="center">
-  <img src="docs/images/topology_comparison_3d.png" width="600"/>
-  <br/><em>Topological connection — Gabriel's Horn (teal, finite volume, infinite surface) alongside the Schwarzschild embedding funnel (amber, r<sub>s</sub>=0.448). Same topology. Bekenstein-Hawking closes the loop: entropy ∝ surface area.</em>
-</p>
+In short: **the current honest 1+1D toy shows a weak, partial signature at best.** This is the real starting point. (Recall that in 1+1D the continuum Einstein tensor vanishes identically — a meaningful H3 test needs the framework extended to ≥ 3+1D first.)
 
 ---
 
 ## Theoretical Foundation
 
-### Lagrangian Derivation *(v1.2 — previously heuristic)*
+### The Stress Tensor Ansatz
 
-The entropic stress-energy tensor $T^{(\text{ent})}_{\mu\nu}$ is now **derived** from a covariant action via Hilbert variation:
+*If* one postulates that the entropy field contributes to the action like a massless scalar,
 
 $$S = \int \sqrt{-g} \left[ \frac{R}{16\pi G} - \frac{\hbar}{4\pi} (\nabla S)^2 \right] d^n x$$
 
-Varying with respect to $g^{\mu\nu}$ yields:
+then Hilbert variation with respect to $g^{\mu\nu}$ yields:
 
 $$T^{(\text{ent})}_{\mu\nu} = \frac{\hbar}{2\pi} \left[ \nabla_\mu S \, \nabla_\nu S - \frac{1}{2} g_{\mu\nu} (\nabla S)^2 \right]$$
 
-This is no longer heuristic — it follows from the same variational principle as Einstein's field equations.
+The variation itself is standard scalar-field algebra. What is *not* derived — and is the actual conjecture this sandbox explores — is the premise that entanglement entropy enters the gravitational action this way at all. As of v1.3, $\nabla_\mu S$ in the code is a genuine spacetime derivative of an entropy field computed from partial traces of a quantum state, so the implementation at least matches the equation being tested.
 
 ### Massless Constraint (E = pc)
 
@@ -174,9 +125,9 @@ Quantum Information ──► Thermodynamics ──► Geometry ──► Learni
 
 | | Hypothesis | Status |
 |---|---|---|
-| H1 | Higher entanglement → larger curvature | ✅ Confirmed |
-| H2 | Optimization converges to modified Einstein equations | ✅ Confirmed |
-| H3 | Localized entanglement source recovers Schwarzschild metric | 🟡 Partial (2/3 checks, Pearson 0.784, 1000 iters) |
+| H1 | Higher entanglement → larger curvature | ⬜ Open — prior "confirmation" used the invalidated v1.2 pipeline |
+| H2 | Optimization converges to modified Einstein equations | ⬜ Open — must be re-run on v1.3 |
+| H3 | Localized entanglement source recovers Schwarzschild metric | ⬜ Open — v1.2 result was circular (hand-placed Gaussian source) |
 
 ---
 
@@ -196,7 +147,7 @@ EntropicUnification/
 │       └── finite_difference.py  # dx-normalized finite difference (1st and 2nd order)
 │
 ├── examples/
-│   ├── schwarzschild_test.py   # H3: Bell state → Schwarzschild recovery
+│   ├── schwarzschild_test.py   # H3: GHZ entropy field S(r) → metric optimization
 │   ├── scaling_experiment.py   # r_s vs S_ent Bekenstein-Hawking scaling sweep
 │   ├── entropic_simulation.py  # Full simulation pipeline
 │   ├── compare_stress_tensors.py  # Formulation comparison
@@ -283,10 +234,13 @@ This framework sits at the intersection of four established research programs:
 
 This is a research testbed, not a validated theory of quantum gravity.
 
-- The mapping from entanglement to geometry depends on the Hilbert space partition — there is no canonical choice
-- The Faulkner Hessian falls back to an outer product approximation when the autograd graph is unavailable
-- `holographic_entropy()` implements the RT geodesic integral in 1+1D — full minimal surface solvers for higher dimensions are future work
-- Results in the Schwarzschild test are sensitive to lattice size, iteration count, and initial state
+- **The central premise is a conjecture.** Treating entanglement entropy as a massless scalar field in the gravitational action is postulated, not derived. The Hilbert variation only tells you what stress tensor that postulate implies.
+- **The entropy field depends on the qubit placement.** S(r) is genuinely computed from the state, but where the qubits sit on the lattice is a modeling choice, and the mapping from Hilbert space partitions to spatial regions has no canonical form.
+- **The geometry is a 1+1D toy.** The metric varies along a single coordinate; in 2D the Einstein tensor vanishes identically in the continuum, so any structure in G_munu here is discretization effect plus gauge. Interpret 2D "recoveries" accordingly. Higher-dimensional runs are needed for any physical claim.
+- **S(r) for few qubits is piecewise constant.** The "linear" interpolation between qubit positions is a declared discretization choice; with 4 qubits the gradient structure is coarse. More qubits give a smoother, more meaningful field.
+- **`holographic_entropy()`** implements the RT geodesic integral in 1+1D only — full minimal surface solvers for higher dimensions are future work.
+- **Results are sensitive** to lattice size, iteration count, learning rate, and qubit cluster geometry.
+- The legacy `compute_entropy_stress_tensor()` state-space-projection path is retained for backward compatibility but emits a warning and should not be used for results.
 
 These limitations are tracked and documented. The framework is intended to be honest about what it does and does not demonstrate.
 
@@ -304,15 +258,15 @@ The long-term vision: NIS agents grounded in physics that is itself grounded in 
 
 ## Roadmap
 
-- [x] Lagrangian derivation of $T^{(\text{ent})}_{\mu\nu}$
-- [x] Massless constraint (E=pc tracelessness)
-- [x] Real Ryu-Takayanagi geodesic integral
-- [x] Faulkner second-order Hessian formulation
-- [x] Schwarzschild recovery test (H3)
-- [x] Tracelessness diagnostic (live per-simulation)
+- [x] Stress tensor ansatz from Hilbert variation (LAGRANGIAN / MASSLESS / FAULKNER)
+- [x] Entropy field $S(r)$ computed from partial traces of the actual state (v1.3)
+- [x] Honest curvature pipeline: dx-normalized derivatives, single-coordinate ansatz, no symmetry projection (v1.3)
+- [x] Exact tracelessness of MASSLESS form via $g^{\mu\nu}$ contraction (v1.3)
+- [x] Real spatial Hessian for FAULKNER formulation (v1.3)
 - [x] O(2ⁿ) partial trace via tensor reshape
-- [ ] Schwarzschild quantitative fit — $r_s$ vs $S_{\text{ent}}$
-- [ ] Full Riemann tensor in Schwarzschild test
+- [ ] Re-run H1–H3 on the v1.3 pipeline and publish results (positive or null)
+- [ ] Move beyond 1+1D — in 2D the continuum Einstein tensor vanishes identically, so H3 needs ≥ 3+1D to be meaningful
+- [ ] Many-qubit chains (8–12) for smoother $S(r)$ profiles
 - [ ] Real quantum hardware integration (IBM Quantum / IonQ)
 - [ ] Cosmological simulations — early universe dynamics
 - [ ] Black hole information paradox testbed
@@ -328,7 +282,7 @@ The long-term vision: NIS agents grounded in physics that is itself grounded in 
                Spacetime Geometry from Quantum Entanglement},
   author    = {Organica AI Solutions},
   year      = {2025},
-  version   = {1.2},
+  version   = {1.3},
   url       = {https://github.com/Organica-Ai-Solutions/EntropicUnification},
   note      = {Part of the NIS Protocol ecosystem}
 }
@@ -348,5 +302,5 @@ The long-term vision: NIS agents grounded in physics that is itself grounded in 
 
 ---
 
-*Version 1.2 — March 2026*
+*Version 1.3 — July 2026*
 *Organica AI Solutions — [organicaai.com](https://organicaai.com)*

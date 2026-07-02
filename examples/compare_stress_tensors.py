@@ -301,7 +301,7 @@ def compare_stress_tensors(results, analyses, output_dir):
     # For loss, lower is better, so we invert and normalize
     loss_values = []
     for form in formulations:
-        if 'history' in results[form] and results[form]['history']['total_loss']:
+        if form in results and results[form].get('history', {}).get('total_loss'):
             loss_values.append(1.0 / (results[form]['history']['total_loss'][-1] + 0.01))
         else:
             loss_values.append(0.0)

@@ -21,6 +21,8 @@ from torch import nn
 from typing import Dict, List, Optional, Tuple, Union
 from enum import Enum
 
+from .utils.finite_difference import fixed_finite_difference
+
 
 class BoundaryCondition(str, Enum):
     """Boundary conditions for the metric field."""
@@ -185,374 +187,19 @@ class GeometryEngine(nn.Module):
     # Finite differences with improved boundary handling
     # ------------------------------------------------------------------
     def _finite_difference(
-        self, 
-        tensor: torch.Tensor, 
-        order: int = 1, 
+        self,
+        tensor: torch.Tensor,
+        order: int = 1,
         axis: int = 0
     ) -> torch.Tensor:
+        """dx-normalized finite difference along the lattice axis.
+
+        Delegates to core.utils.finite_difference.fixed_finite_difference so
+        that first derivatives carry units of 1/dx and second derivatives
+        1/dx**2. (An earlier version of this method omitted the dx division,
+        which made every curvature quantity dimensionally wrong.)
         """
-        A robust implementation of finite difference that handles different tensor dimensions.
-        
-        Args:
-            tensor: Input tensor to take derivatives of
-            order: Order of the derivative (1 or 2)
-            axis: Axis along which to take the derivative
-            
-        Returns:
-            Tensor containing the finite difference approximation
-        """
-        # Get tensor shape
-        shape = tensor.shape
-        
-        # Check if the axis is valid
-        if axis >= len(shape):
-            raise ValueError(f"Axis {axis} is out of range for tensor with {len(shape)} dimensions")
-        
-        # Initialize result tensor
-        result = torch.zeros_like(tensor)
-        
-        # Get the size along the derivative axis
-        axis_size = shape[axis]
-        
-        if order == 1:
-            # First derivative
-            # For interior points, use central difference
-            for i in range(1, axis_size - 1):
-                # Create slices for i-1, i, and i+1
-                s_prev = [slice(None)] * len(shape)
-                s_curr = [slice(None)] * len(shape)
-                s_next = [slice(None)] * len(shape)
-                
-                s_prev[axis] = i - 1
-                s_curr[axis] = i
-                s_next[axis] = i + 1
-                
-                # Central difference
-                result[tuple(s_curr)] = (tensor[tuple(s_next)] - tensor[tuple(s_prev)]) / 2.0
-            
-            # Forward difference for first point
-            if axis_size > 1:
-                s_first = [slice(None)] * len(shape)
-                s_second = [slice(None)] * len(shape)
-                s_first[axis] = 0
-                s_second[axis] = 1
-                
-                result[tuple(s_first)] = tensor[tuple(s_second)] - tensor[tuple(s_first)]
-            
-            # Backward difference for last point
-            if axis_size > 1:
-                s_last = [slice(None)] * len(shape)
-                s_second_last = [slice(None)] * len(shape)
-                s_last[axis] = axis_size - 1
-                s_second_last[axis] = axis_size - 2
-                
-                result[tuple(s_last)] = tensor[tuple(s_last)] - tensor[tuple(s_second_last)]
-        
-        elif order == 2:
-            # Second derivative
-            # For interior points, use central difference
-            for i in range(1, axis_size - 1):
-                # Create slices for i-1, i, and i+1
-                s_prev = [slice(None)] * len(shape)
-                s_curr = [slice(None)] * len(shape)
-                s_next = [slice(None)] * len(shape)
-                
-                s_prev[axis] = i - 1
-                s_curr[axis] = i
-                s_next[axis] = i + 1
-                
-                # Central difference for second derivative
-                result[tuple(s_curr)] = tensor[tuple(s_next)] - 2 * tensor[tuple(s_curr)] + tensor[tuple(s_prev)]
-            
-            # Forward difference for first point
-            if axis_size > 2:
-                s_first = [slice(None)] * len(shape)
-                s_second = [slice(None)] * len(shape)
-                s_third = [slice(None)] * len(shape)
-                s_first[axis] = 0
-                s_second[axis] = 1
-                s_third[axis] = 2
-                
-                result[tuple(s_first)] = tensor[tuple(s_third)] - 2 * tensor[tuple(s_second)] + tensor[tuple(s_first)]
-            
-            # Backward difference for last point
-            if axis_size > 2:
-                s_last = [slice(None)] * len(shape)
-                s_second_last = [slice(None)] * len(shape)
-                s_third_last = [slice(None)] * len(shape)
-                s_last[axis] = axis_size - 1
-                s_second_last[axis] = axis_size - 2
-                s_third_last[axis] = axis_size - 3
-                
-                result[tuple(s_last)] = tensor[tuple(s_last)] - 2 * tensor[tuple(s_second_last)] + tensor[tuple(s_third_last)]
-        
-        else:
-            raise ValueError("Only 1st and 2nd order derivatives are supported")
-        
-        return result
-    
-    def _handle_boundaries_first_derivative(self, tensor, result, axis, slices):
-        """Handle boundary points for first derivative with appropriate one-sided differences."""
-        axis_size = tensor.shape[axis]
-        
-        # Create slices for boundary regions
-        for i in range(3):  # First 3 points
-            s = [slice(None)] * tensor.dim()
-            s[axis] = i
-            boundary = tuple(s)
-            
-            if i == 0:  # First point: Forward difference (4th order)
-                # f'(x) ≈ (-25f(x) + 48f(x+h) - 36f(x+2h) + 16f(x+3h) - 3f(x+4h)) / (12h)
-                result[boundary] = (
-                    -25 * tensor[slices[0]] + 
-                    48 * tensor[slices[1]] - 
-                    36 * tensor[slices[2]] + 
-                    16 * tensor[slices[3]] - 
-                    3 * tensor[tuple(self._get_offset_slice(tensor, axis, 4))]
-                ) / (12.0 * self.dx)
-                
-            elif i == 1:  # Second point: Forward-biased difference (4th order)
-                # f'(x) ≈ (-3f(x-1h) - 10f(x) + 18f(x+1h) - 6f(x+2h) + f(x+3h)) / (12h)
-                result[boundary] = (
-                    -3 * tensor[slices[-1]] - 
-                    10 * tensor[slices[0]] + 
-                    18 * tensor[slices[1]] - 
-                    6 * tensor[slices[2]] + 
-                    tensor[slices[3]]
-                ) / (12.0 * self.dx)
-                
-            elif i == 2:  # Third point: Central difference (4th order)
-                # f'(x) ≈ (-f(x-2h) + 8f(x-h) - 8f(x+h) + f(x+2h)) / (12h)
-                result[boundary] = (
-                    -tensor[slices[-2]] + 
-                    8 * tensor[slices[-1]] - 
-                    8 * tensor[slices[1]] + 
-                    tensor[slices[2]]
-                ) / (12.0 * self.dx)
-        
-        # Last 3 points
-        for i in range(3):
-            s = [slice(None)] * tensor.dim()
-            s[axis] = axis_size - 3 + i
-            boundary = tuple(s)
-            
-            if i == 0:  # Third-to-last point: Central difference (4th order)
-                # f'(x) ≈ (-f(x-2h) + 8f(x-h) - 8f(x+h) + f(x+2h)) / (12h)
-                result[boundary] = (
-                    -tensor[tuple(self._get_offset_slice(tensor, axis, -2))] + 
-                    8 * tensor[tuple(self._get_offset_slice(tensor, axis, -1))] - 
-                    8 * tensor[tuple(self._get_offset_slice(tensor, axis, 1))] + 
-                    tensor[tuple(self._get_offset_slice(tensor, axis, 2))]
-                ) / (12.0 * self.dx)
-                
-            elif i == 1:  # Second-to-last point: Backward-biased difference (4th order)
-                # f'(x) ≈ (-f(x-3h) + 6f(x-2h) - 18f(x-h) + 10f(x) + 3f(x+h)) / (12h)
-                result[boundary] = (
-                    -tensor[tuple(self._get_offset_slice(tensor, axis, -3))] + 
-                    6 * tensor[tuple(self._get_offset_slice(tensor, axis, -2))] - 
-                    18 * tensor[tuple(self._get_offset_slice(tensor, axis, -1))] + 
-                    10 * tensor[slices[0]] + 
-                    3 * tensor[tuple(self._get_offset_slice(tensor, axis, 1))]
-                ) / (12.0 * self.dx)
-                
-            elif i == 2:  # Last point: Backward difference (4th order)
-                # f'(x) ≈ (3f(x-4h) - 16f(x-3h) + 36f(x-2h) - 48f(x-h) + 25f(x)) / (12h)
-                result[boundary] = (
-                    3 * tensor[tuple(self._get_offset_slice(tensor, axis, -4))] - 
-                    16 * tensor[tuple(self._get_offset_slice(tensor, axis, -3))] + 
-                    36 * tensor[tuple(self._get_offset_slice(tensor, axis, -2))] - 
-                    48 * tensor[tuple(self._get_offset_slice(tensor, axis, -1))] + 
-                    25 * tensor[slices[0]]
-                ) / (12.0 * self.dx)
-    
-    def _handle_boundaries_second_derivative(self, tensor, result, axis, slices):
-        """Handle boundary points for second derivative with appropriate one-sided differences."""
-        axis_size = tensor.shape[axis]
-        
-        # Create slices for boundary regions
-        for i in range(3):  # First 3 points
-            s = [slice(None)] * tensor.dim()
-            s[axis] = i
-            boundary = tuple(s)
-            
-            if i == 0:  # First point: Forward difference (4th order)
-                # f''(x) ≈ (45f(x) - 154f(x+h) + 214f(x+2h) - 156f(x+3h) + 61f(x+4h) - 10f(x+5h)) / (12h²)
-                result[boundary] = (
-                    45 * tensor[slices[0]] - 
-                    154 * tensor[slices[1]] + 
-                    214 * tensor[slices[2]] - 
-                    156 * tensor[slices[3]] + 
-                    61 * tensor[tuple(self._get_offset_slice(tensor, axis, 4))] - 
-                    10 * tensor[tuple(self._get_offset_slice(tensor, axis, 5))]
-                ) / (12.0 * self.dx ** 2)
-                
-            elif i == 1:  # Second point: Forward-biased difference (4th order)
-                # f''(x) ≈ (10f(x-1h) - 15f(x) - 4f(x+1h) + 14f(x+2h) - 6f(x+3h) + f(x+4h)) / (12h²)
-                result[boundary] = (
-                    10 * tensor[slices[-1]] - 
-                    15 * tensor[slices[0]] - 
-                    4 * tensor[slices[1]] + 
-                    14 * tensor[slices[2]] - 
-                    6 * tensor[slices[3]] + 
-                    tensor[tuple(self._get_offset_slice(tensor, axis, 4))]
-                ) / (12.0 * self.dx ** 2)
-                
-            elif i == 2:  # Third point: Central-biased difference (4th order)
-                # f''(x) ≈ (f(x-2h) - 16f(x-h) + 30f(x) - 16f(x+h) + f(x+2h)) / (12h²)
-                result[boundary] = (
-                    tensor[slices[-2]] - 
-                    16 * tensor[slices[-1]] + 
-                    30 * tensor[slices[0]] - 
-                    16 * tensor[slices[1]] + 
-                    tensor[slices[2]]
-                ) / (12.0 * self.dx ** 2)
-        
-        # Last 3 points
-        for i in range(3):
-            s = [slice(None)] * tensor.dim()
-            s[axis] = axis_size - 3 + i
-            boundary = tuple(s)
-            
-            if i == 0:  # Third-to-last point: Central-biased difference (4th order)
-                # f''(x) ≈ (f(x-2h) - 16f(x-h) + 30f(x) - 16f(x+h) + f(x+2h)) / (12h²)
-                result[boundary] = (
-                    tensor[tuple(self._get_offset_slice(tensor, axis, -2))] - 
-                    16 * tensor[tuple(self._get_offset_slice(tensor, axis, -1))] + 
-                    30 * tensor[slices[0]] - 
-                    16 * tensor[tuple(self._get_offset_slice(tensor, axis, 1))] + 
-                    tensor[tuple(self._get_offset_slice(tensor, axis, 2))]
-                ) / (12.0 * self.dx ** 2)
-                
-            elif i == 1:  # Second-to-last point: Backward-biased difference (4th order)
-                # f''(x) ≈ (f(x-4h) - 6f(x-3h) + 14f(x-2h) - 4f(x-h) - 15f(x) + 10f(x+h)) / (12h²)
-                result[boundary] = (
-                    tensor[tuple(self._get_offset_slice(tensor, axis, -4))] - 
-                    6 * tensor[tuple(self._get_offset_slice(tensor, axis, -3))] + 
-                    14 * tensor[tuple(self._get_offset_slice(tensor, axis, -2))] - 
-                    4 * tensor[tuple(self._get_offset_slice(tensor, axis, -1))] - 
-                    15 * tensor[slices[0]] + 
-                    10 * tensor[tuple(self._get_offset_slice(tensor, axis, 1))]
-                ) / (12.0 * self.dx ** 2)
-                
-            elif i == 2:  # Last point: Backward difference (4th order)
-                # f''(x) ≈ (-10f(x-5h) + 61f(x-4h) - 156f(x-3h) + 214f(x-2h) - 154f(x-h) + 45f(x)) / (12h²)
-                result[boundary] = (
-                    -10 * tensor[tuple(self._get_offset_slice(tensor, axis, -5))] + 
-                    61 * tensor[tuple(self._get_offset_slice(tensor, axis, -4))] - 
-                    156 * tensor[tuple(self._get_offset_slice(tensor, axis, -3))] + 
-                    214 * tensor[tuple(self._get_offset_slice(tensor, axis, -2))] - 
-                    154 * tensor[tuple(self._get_offset_slice(tensor, axis, -1))] + 
-                    45 * tensor[slices[0]]
-                ) / (12.0 * self.dx ** 2)
-    
-    def _get_offset_slice(self, tensor, axis, offset):
-        """Get a slice with the given offset, handling boundary conditions."""
-        s = [slice(None)] * tensor.dim()
-        axis_size = tensor.shape[axis]
-        
-        # Handle boundaries based on boundary condition
-        if 0 <= offset < axis_size:
-            s[axis] = offset
-        elif self.boundary_condition == BoundaryCondition.PERIODIC:
-            s[axis] = offset % axis_size
-        elif self.boundary_condition == BoundaryCondition.DIRICHLET:
-            s[axis] = max(0, min(offset, axis_size - 1))
-        elif self.boundary_condition == BoundaryCondition.NEUMANN:
-            if offset < 0:
-                s[axis] = -offset - 1
-            elif offset >= axis_size:
-                s[axis] = 2 * axis_size - offset - 1
-            else:
-                s[axis] = offset
-        else:  # ABSORBING or default
-            s[axis] = max(0, min(offset, axis_size - 1))
-            
-        return s
-    
-    def _finite_difference_simple(self, tensor, order, axis):
-        """Simplified finite difference implementation as fallback for small tensors."""
-        result = torch.zeros_like(tensor)
-        
-        if order == 1:
-            # Simple central difference for first derivative
-            if tensor.shape[axis] > 2:
-                # Get slices for i+1 and i-1
-                slice_plus = [slice(None)] * tensor.dim()
-                slice_minus = [slice(None)] * tensor.dim()
-                slice_center = [slice(None)] * tensor.dim()
-                
-                # For interior points
-                slice_plus[axis] = slice(2, None)
-                slice_center[axis] = slice(1, -1)
-                slice_minus[axis] = slice(0, -2)
-                
-                # Central difference: (f(x+h) - f(x-h)) / 2h
-                result[tuple(slice_center)] = (tensor[tuple(slice_plus)] - tensor[tuple(slice_minus)]) / (2.0 * self.dx)
-                
-                # For boundary points, use forward/backward difference
-                # Forward difference at the first point
-                first_slice = [slice(None)] * tensor.dim()
-                first_slice[axis] = 0
-                next_slice = [slice(None)] * tensor.dim()
-                next_slice[axis] = 1
-                result[tuple(first_slice)] = (tensor[tuple(next_slice)] - tensor[tuple(first_slice)]) / self.dx
-                
-                # Backward difference at the last point
-                last_slice = [slice(None)] * tensor.dim()
-                last_slice[axis] = -1
-                prev_slice = [slice(None)] * tensor.dim()
-                prev_slice[axis] = -2
-                result[tuple(last_slice)] = (tensor[tuple(last_slice)] - tensor[tuple(prev_slice)]) / self.dx
-        else:  # order == 2
-            # Simple central difference for second derivative
-            if tensor.shape[axis] > 2:
-                # Get slices for i+1, i, and i-1
-                slice_plus = [slice(None)] * tensor.dim()
-                slice_center = [slice(None)] * tensor.dim()
-                slice_minus = [slice(None)] * tensor.dim()
-                
-                # For interior points
-                slice_plus[axis] = slice(2, None)
-                slice_center[axis] = slice(1, -1)
-                slice_minus[axis] = slice(0, -2)
-                
-                # Central difference: (f(x+h) - 2f(x) + f(x-h)) / h²
-                result[tuple(slice_center)] = (
-                    tensor[tuple(slice_plus)] 
-                    - 2 * tensor[tuple(slice_center)] 
-                    + tensor[tuple(slice_minus)]
-                ) / (self.dx ** 2)
-                
-                # For boundary points, use forward/backward approximations
-                # First point: Forward difference
-                first_slice = [slice(None)] * tensor.dim()
-                first_slice[axis] = 0
-                first_plus1 = [slice(None)] * tensor.dim()
-                first_plus1[axis] = 1
-                first_plus2 = [slice(None)] * tensor.dim()
-                first_plus2[axis] = 2
-                result[tuple(first_slice)] = (
-                    2 * tensor[tuple(first_slice)] 
-                    - 5 * tensor[tuple(first_plus1)] 
-                    + 4 * tensor[tuple(first_plus2)] 
-                    - tensor[tuple(self._get_offset_slice(tensor, axis, 3))]
-                ) / (self.dx ** 2)
-                
-                # Last point: Backward difference
-                last_slice = [slice(None)] * tensor.dim()
-                last_slice[axis] = -1
-                last_minus1 = [slice(None)] * tensor.dim()
-                last_minus1[axis] = -2
-                last_minus2 = [slice(None)] * tensor.dim()
-                last_minus2[axis] = -3
-                result[tuple(last_slice)] = (
-                    2 * tensor[tuple(last_slice)] 
-                    - 5 * tensor[tuple(last_minus1)] 
-                    + 4 * tensor[tuple(last_minus2)] 
-                    - tensor[tuple(self._get_offset_slice(tensor, axis, -4))]
-                ) / (self.dx ** 2)
-                
-        return result
+        return fixed_finite_difference(tensor, order=order, axis=axis, dx=float(self.dx))
 
     # ------------------------------------------------------------------
     # Spectral methods for higher accuracy
@@ -682,44 +329,33 @@ class GeometryEngine(nn.Module):
         if metric is None:
             metric = self.metric_field
             
-        # Initialize Christoffel symbols
         lattice_size = metric.shape[0]
         dim = self.dimensions
-        christoffel = torch.zeros((lattice_size, dim, dim, dim), dtype=metric.dtype, device=metric.device)
-        
-        # Compute inverse metric
-        g_inv = torch.zeros_like(metric)
-        for i in range(lattice_size):
-            g_inv[i] = torch.linalg.inv(metric[i])
-        
-        # Compute derivatives of the metric along the lattice dimension
-        dg = self._finite_difference(metric, order=1, axis=0)
-        
-        # Reshape derivatives for use in the Christoffel symbol calculation
-        # We'll use a simplified approach where we only consider derivatives along the first dimension
-        dg_reshaped = torch.zeros((lattice_size, dim, dim, dim), dtype=metric.dtype, device=metric.device)
-        
-        # For simplicity, we'll set all spatial derivatives to be the same as the time derivative
-        for i in range(lattice_size):
-            for alpha in range(dim):
-                for mu in range(dim):
-                    for nu in range(dim):
-                        dg_reshaped[i, alpha, mu, nu] = dg[i, mu, nu]
-        
-        # Compute Christoffel symbols
-        for i in range(lattice_size):
-            for mu in range(dim):
-                for alpha in range(dim):
-                    for beta in range(dim):
-                        # Sum over sigma
-                        for sigma in range(dim):
-                            # Γ^μ_αβ = (1/2) g^μσ (∂_α g_σβ + ∂_β g_σα - ∂_σ g_αβ)
-                            christoffel[i, mu, alpha, beta] += 0.5 * g_inv[i, mu, sigma] * (
-                                dg_reshaped[i, alpha, sigma, beta] + 
-                                dg_reshaped[i, beta, sigma, alpha] - 
-                                dg_reshaped[i, sigma, alpha, beta]
-                            )
-        
+
+        # Batched inverse metric g^μσ
+        g_inv = torch.linalg.inv(metric)
+
+        # The metric field is static and homogeneous in every coordinate
+        # except x^1, the coordinate the lattice discretizes.  Therefore
+        # ∂_α g_μν = 0 for α ≠ 1, and ∂_1 g_μν is the lattice finite
+        # difference.  (An earlier version copied the lattice derivative
+        # into *every* coordinate slot, which does not correspond to any
+        # metric ansatz.)
+        dg = self._finite_difference(metric, order=1, axis=0)  # (N, d, d)
+        dg_full = torch.zeros(
+            (lattice_size, dim, dim, dim), dtype=metric.dtype, device=metric.device
+        )
+        dg_full[:, 1] = dg  # dg_full[i, α, μ, ν] = ∂_α g_μν
+
+        # Γ^μ_αβ = (1/2) g^μσ (∂_α g_σβ + ∂_β g_σα − ∂_σ g_αβ)
+        # Build S[i, σ, α, β] = ∂_α g_σβ + ∂_β g_σα − ∂_σ g_αβ
+        s_term = (
+            dg_full.permute(0, 2, 1, 3)      # [i, σ, α, β] = ∂_α g_σβ
+            + dg_full.permute(0, 2, 3, 1)    # [i, σ, α, β] = ∂_β g_σα
+            - dg_full                        # [i, σ, α, β] = ∂_σ g_αβ
+        )
+        christoffel = 0.5 * torch.einsum("ims,isab->imab", g_inv, s_term)
+
         # Cache the result
         self._cache[cache_key] = christoffel
         return christoffel
@@ -742,52 +378,68 @@ class GeometryEngine(nn.Module):
             
         # Compute Christoffel symbols
         gamma = self.compute_christoffel_symbols(metric)
-        
-        # Compute derivatives of Christoffel symbols
+
+        dim = self.dimensions
+        lattice_size = metric.shape[0]
+
+        # ∂_α Γ: nonzero only for α = 1 (the lattice coordinate) — same
+        # static, single-coordinate ansatz as compute_christoffel_symbols.
+        dgamma_lattice = self._finite_difference(gamma, order=1, axis=0)  # (N, d, d, d)
         dgamma = torch.zeros(
-            (self.lattice_size, self.dimensions, self.dimensions, 
-             self.dimensions, self.dimensions),
-            dtype=self.dtype,
-            device=self.device,
+            (lattice_size, dim, dim, dim, dim), dtype=metric.dtype, device=metric.device
         )
-        
-        for mu in range(self.dimensions):
-            dgamma[:, mu] = self._finite_difference(gamma, order=1, axis=0)
-        
-        # Pre-allocate Riemann tensor
-        riemann = torch.zeros(
-            (self.lattice_size, self.dimensions, self.dimensions, 
-             self.dimensions, self.dimensions),
-            dtype=self.dtype,
-            device=self.device,
-        )
-        
-        # Compute Riemann tensor components
-        # R^α_{βμν} = ∂_μ Γ^α_{νβ} - ∂_ν Γ^α_{μβ} + Γ^α_{μλ} Γ^λ_{νβ} - Γ^α_{νλ} Γ^λ_{μβ}
-        for i in range(self.lattice_size):
-            for alpha in range(self.dimensions):
-                for beta in range(self.dimensions):
-                    for mu in range(self.dimensions):
-                        for nu in range(self.dimensions):
-                            # ∂_μ Γ^α_{νβ} - ∂_ν Γ^α_{μβ}
-                            term1 = dgamma[i, mu, alpha, nu, beta] - dgamma[i, nu, alpha, mu, beta]
-                            
-                            # Γ^α_{μλ} Γ^λ_{νβ} - Γ^α_{νλ} Γ^λ_{μβ}
-                            term2 = 0.0
-                            for lam in range(self.dimensions):
-                                term2 += (
-                                    gamma[i, alpha, mu, lam] * gamma[i, lam, nu, beta] -
-                                    gamma[i, alpha, nu, lam] * gamma[i, lam, mu, beta]
-                                )
-                            
-                            riemann[i, alpha, beta, mu, nu] = term1 + term2
-        
-        # Enforce Riemann tensor symmetries and Bianchi identity
-        riemann = self.enforce_tensor_symmetries(riemann, "riemann")
-        
+        dgamma[:, 1] = dgamma_lattice  # dgamma[i, α, μ, ν, β] = ∂_α Γ^μ_νβ
+
+        # R^α_{βμν} = ∂_μ Γ^α_{νβ} − ∂_ν Γ^α_{μβ} + Γ^α_{μλ} Γ^λ_{νβ} − Γ^α_{νλ} Γ^λ_{μβ}
+        # term1[i, α, β, μ, ν] = ∂_μ Γ^α_{νβ}: dgamma dims are (i, deriv, up, low1, low2)
+        dG = dgamma.permute(0, 2, 4, 1, 3)  # [i, α, β, μ, ν] = dgamma[i, μ, α, ν, β]
+        term1 = dG - dG.transpose(3, 4)
+
+        # term2[i, α, β, μ, ν] = Γ^α_{μλ} Γ^λ_{νβ} (antisymmetrized in μ↔ν)
+        gg = torch.einsum("iaml,ilnb->iabmn", gamma, gamma)
+        term2 = gg - gg.transpose(3, 4)
+
+        # No symmetry "enforcement": the mixed-index R^α_{βμν} does not carry
+        # the fully-lowered symmetries, and projecting them in silently
+        # corrupts the computed curvature.  Use riemann_identity_violations()
+        # to *measure* how well the lowered tensor satisfies its identities.
+        riemann = term1 + term2
+
         # Cache the result
         self._cache[cache_key] = riemann
         return riemann
+
+    def lower_riemann_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Return the fully-lowered Riemann tensor R_{αβμν} = g_{αλ} R^λ_{βμν}."""
+        if metric is None:
+            metric = self.metric_field
+        riemann = self.compute_riemann_tensor(metric)
+        return torch.einsum("ial,ilbmn->iabmn", metric, riemann)
+
+    def riemann_identity_violations(
+        self, metric: Optional[torch.Tensor] = None
+    ) -> Dict[str, float]:
+        """Diagnostic: measure how badly the lowered Riemann tensor violates
+        its algebraic identities (antisymmetry, pair symmetry, first Bianchi).
+
+        Returns relative Frobenius-norm violations.  Large values indicate
+        discretization error or an unphysical metric state — they are
+        reported, never silently projected away.
+        """
+        rl = self.lower_riemann_tensor(metric)
+        norm = torch.linalg.norm(rl.flatten()) + 1e-30
+        antisym_first = torch.linalg.norm((rl + rl.transpose(1, 2)).flatten()) / norm
+        antisym_last = torch.linalg.norm((rl + rl.transpose(3, 4)).flatten()) / norm
+        pair_sym = torch.linalg.norm((rl - rl.permute(0, 3, 4, 1, 2)).flatten()) / norm
+        bianchi = torch.linalg.norm(
+            (rl + rl.permute(0, 1, 3, 4, 2) + rl.permute(0, 1, 4, 2, 3)).flatten()
+        ) / norm
+        return {
+            "antisymmetry_first_pair": float(antisym_first),
+            "antisymmetry_last_pair": float(antisym_last),
+            "pair_symmetry": float(pair_sym),
+            "first_bianchi": float(bianchi),
+        }
     
     def compute_ricci_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Compute the Ricci tensor by contracting the Riemann tensor.
@@ -807,23 +459,13 @@ class GeometryEngine(nn.Module):
         
         # Get Riemann tensor
         riemann = self.compute_riemann_tensor(metric)
-        
-        # Initialize Ricci tensor
-        lattice_size = metric.shape[0]
-        dim = self.dimensions
-        ricci = torch.zeros((lattice_size, dim, dim), dtype=metric.dtype, device=metric.device)
-        
-        # Compute Ricci tensor by contracting Riemann tensor
-        for i in range(lattice_size):
-            for mu in range(dim):
-                for nu in range(dim):
-                    # R_μν = R^λ_μλν
-                    for lamb in range(dim):
-                        ricci[i, mu, nu] += riemann[i, lamb, mu, lamb, nu]
-        
-        # Enforce Ricci tensor symmetry
-        ricci = self.enforce_tensor_symmetries(ricci, "ricci")
-        
+
+        # R_μν = R^λ_{μλν} — contraction of the first and third indices.
+        # Computed honestly, with no symmetrization: for a valid metric the
+        # result is symmetric up to discretization error, and any asymmetry
+        # is a diagnostic worth seeing rather than hiding.
+        ricci = torch.einsum("ilmln->imn", riemann)
+
         # Cache the result
         self._cache[cache_key] = ricci
         return ricci
@@ -848,14 +490,8 @@ class GeometryEngine(nn.Module):
         g_inv = torch.linalg.inv(metric)
         
         # Contract with inverse metric: R = g^{μν} R_{μν}
-        # Use explicit loops instead of einsum with Greek letters
-        lattice_size = metric.shape[0]
-        scalar = torch.zeros(lattice_size, dtype=metric.dtype, device=metric.device)
-        
-        for i in range(lattice_size):
-            # Manual contraction of g_inv and ricci
-            scalar[i] = torch.sum(g_inv[i] * ricci[i])
-        
+        scalar = torch.einsum("imn,imn->i", g_inv, ricci)
+
         # Cache the result
         self._cache[cache_key] = scalar
         return scalar
@@ -867,8 +503,10 @@ class GeometryEngine(nn.Module):
         scalar: torch.Tensor
     ) -> torch.Tensor:
         """
-        Compute higher curvature terms (e.g., Gauss-Bonnet).
-        
+        Heuristic higher-curvature correction (NOT the true Gauss-Bonnet
+        variation): H_μν = R_μλ R^λ_ν − (1/4) g_μν R².  Off by default;
+        for the honest Gauss-Bonnet scalar see compute_gauss_bonnet_term().
+
         Args:
             metric: Metric tensor
             ricci: Ricci tensor
@@ -928,168 +566,96 @@ class GeometryEngine(nn.Module):
         return einstein
     
     # ------------------------------------------------------------------
-    # Physical constraint enforcement
-    # ------------------------------------------------------------------
-    def enforce_tensor_symmetries(self, tensor: torch.Tensor, tensor_type: str) -> torch.Tensor:
-        """Enforce the symmetry properties of various tensors.
-        
-        Args:
-            tensor: Input tensor to enforce symmetries on
-            tensor_type: Type of tensor ('riemann', 'weyl', etc.)
-            
-        Returns:
-            Tensor with enforced symmetries
-        """
-        if tensor_type == "riemann" or tensor_type == "weyl":
-            # Enforce antisymmetry in first two indices: R_{abcd} = -R_{bacd}
-            tensor = 0.5 * (tensor - tensor.transpose(1, 2))
-            
-            # Enforce antisymmetry in last two indices: R_{abcd} = -R_{abdc}
-            tensor = 0.5 * (tensor - tensor.transpose(3, 4))
-            
-            # Enforce pair symmetry: R_{abcd} = R_{cdab}
-            tensor = 0.5 * (tensor + tensor.permute(0, 3, 4, 1, 2))
-            
-            if tensor_type == "riemann":
-                # Enforce Bianchi identity: R_{abcd} + R_{acdb} + R_{adbc} = 0
-                tensor = self.enforce_bianchi_identity(tensor)
-                
-        elif tensor_type == "ricci":
-            # Enforce symmetry: R_{ab} = R_{ba}
-            tensor = 0.5 * (tensor + tensor.transpose(1, 2))
-            
-        return tensor
-        
-    def enforce_bianchi_identity(self, riemann_tensor: torch.Tensor) -> torch.Tensor:
-        """Enforce the Bianchi identity on the Riemann tensor.
-        
-        The first Bianchi identity states:
-        R_{abcd} + R_{acdb} + R_{adbc} = 0
-        
-        Args:
-            riemann_tensor: Input Riemann tensor
-            
-        Returns:
-            Riemann tensor with enforced Bianchi identity
-        """
-        d = self.dimensions
-        corrected_tensor = riemann_tensor.clone()
-        
-        # For each set of indices, enforce the cyclic identity
-        for a in range(d):
-            for b in range(d):
-                for c in range(d):
-                    for d_idx in range(d):
-                        # Compute the cyclic sum
-                        cyclic_sum = (
-                            riemann_tensor[:, a, b, c, d_idx] + 
-                            riemann_tensor[:, a, c, d_idx, b] + 
-                            riemann_tensor[:, a, d_idx, b, c]
-                        )
-                        
-                        # Distribute the correction equally among the three terms
-                        correction = cyclic_sum / 3.0
-                        
-                        corrected_tensor[:, a, b, c, d_idx] -= correction
-                        corrected_tensor[:, a, c, d_idx, b] -= correction
-                        corrected_tensor[:, a, d_idx, b, c] -= correction
-        
-        return corrected_tensor
-    
-    # ------------------------------------------------------------------
     # Higher-order curvature tensors
     # ------------------------------------------------------------------
     def compute_weyl_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Compute the Weyl conformal curvature tensor.
-        
-        The Weyl tensor is the traceless part of the Riemann tensor:
-        C_{αβμν} = R_{αβμν} - (g_{α[μ}R_{ν]β} - g_{β[μ}R_{ν]α}) + (1/3)R g_{α[μ}g_{ν]β}
-        
+        """Compute the fully-lowered Weyl conformal curvature tensor C_{abmn}.
+
+        C_{abmn} = R_{abmn}
+                   - (1/(n-2)) (g_{am} R_{nb} - g_{an} R_{mb}
+                                - g_{bm} R_{na} + g_{bn} R_{ma})
+                   + (R/((n-1)(n-2))) (g_{am} g_{nb} - g_{an} g_{mb})
+
+        The Weyl tensor vanishes identically for n <= 3, so zeros are
+        returned in that case.
+
         Args:
             metric: Input metric tensor. If None, uses self.metric_field
-            
+
         Returns:
             Weyl tensor with shape [lattice_size, d, d, d, d]
         """
         if self._weyl_tensor is not None:
             return self._weyl_tensor
-            
+
         if metric is None:
             metric = self.metric_field
-            
-        riemann = self.compute_riemann_tensor(metric)
-        ricci = self.compute_ricci_tensor(metric)
-        scalar = self.compute_ricci_scalar(metric).view(-1, 1, 1)
-        
-        # Pre-allocate Weyl tensor
-        weyl = torch.zeros_like(riemann)
-        
-        # Dimension-dependent factor
+
         n = self.dimensions
-        factor = 2.0 / ((n-1) * (n-2))
-        
-        # Compute Weyl tensor components
-        for i in range(self.lattice_size):
-            g = metric[i]
-            R = ricci[i]
-            
-            for a in range(self.dimensions):
-                for b in range(self.dimensions):
-                    for m in range(self.dimensions):
-                        for n in range(self.dimensions):
-                            # Riemann part
-                            weyl[i, a, b, m, n] = riemann[i, a, b, m, n]
-                            
-                            # Ricci part (antisymmetrized)
-                            ricci_term = (
-                                g[a, m] * R[n, b] - g[a, n] * R[m, b] -
-                                g[b, m] * R[n, a] + g[b, n] * R[m, a]
-                            )
-                            weyl[i, a, b, m, n] -= factor * ricci_term
-                            
-                            # Scalar part (antisymmetrized)
-                            scalar_term = scalar[i] * (
-                                g[a, m] * g[n, b] - g[a, n] * g[m, b]
-                            )
-                            weyl[i, a, b, m, n] += factor/3.0 * scalar_term
-        
-        # Enforce Weyl tensor symmetries
-        weyl = self.enforce_tensor_symmetries(weyl, "weyl")
-        
+        rl = self.lower_riemann_tensor(metric)  # fully lowered R_{abmn}
+
+        if n <= 3:
+            # Weyl is identically zero in 2 and 3 dimensions.
+            self._weyl_tensor = torch.zeros_like(rl)
+            return self._weyl_tensor
+
+        ricci = self.compute_ricci_tensor(metric)
+        scalar = self.compute_ricci_scalar(metric)
+
+        g = metric
+        # ricci_part[i,a,b,m,n] = g_am R_nb - g_an R_mb - g_bm R_na + g_bn R_ma
+        ricci_part = (
+            torch.einsum("iam,inb->iabmn", g, ricci)
+            - torch.einsum("ian,imb->iabmn", g, ricci)
+            - torch.einsum("ibm,ina->iabmn", g, ricci)
+            + torch.einsum("ibn,ima->iabmn", g, ricci)
+        )
+        # scalar_part[i,a,b,m,n] = g_am g_nb - g_an g_mb
+        scalar_part = (
+            torch.einsum("iam,inb->iabmn", g, g)
+            - torch.einsum("ian,imb->iabmn", g, g)
+        )
+
+        weyl = (
+            rl
+            - ricci_part / (n - 2)
+            + scalar.view(-1, 1, 1, 1, 1) * scalar_part / ((n - 1) * (n - 2))
+        )
+
         self._weyl_tensor = weyl
         return weyl
-    
+
     def compute_gauss_bonnet_term(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
-        """Compute the Gauss-Bonnet term: R² - 4R_{μν}R^{μν} + R_{μναβ}R^{μναβ}.
-        
+        """Compute the Gauss-Bonnet scalar: R**2 - 4 R_mn R^mn + R_abmn R^abmn.
+
         Args:
             metric: Input metric tensor. If None, uses self.metric_field
-            
+
         Returns:
             Gauss-Bonnet term with shape [lattice_size]
         """
         if self._gauss_bonnet_term is not None:
             return self._gauss_bonnet_term
-            
+
         if metric is None:
             metric = self.metric_field
-            
-        # Get necessary tensors
-        riemann = self.compute_riemann_tensor(metric)
+
         ricci = self.compute_ricci_tensor(metric)
         scalar = self.compute_ricci_scalar(metric)
         g_inv = torch.linalg.inv(metric)
-        
-        # Compute squared terms
-        ricci_squared = torch.einsum('iμν,iμσ,iνσ->i', ricci, g_inv, g_inv)
-        riemann_squared = torch.einsum(
-            'iαβμν,iγδρσ,iαγ,iβδ,iμρ,iνσ->i', 
-            riemann, riemann, g_inv, g_inv, g_inv, g_inv
+        rl = self.lower_riemann_tensor(metric)  # fully lowered R_{abmn}
+
+        # R_mn R^mn = g^ma g^nb R_mn R_ab
+        ricci_squared = torch.einsum(
+            "imn,ima,inb,iab->i", ricci, g_inv, g_inv, ricci
         )
-        
-        # Gauss-Bonnet term: R² - 4R_{μν}R^{μν} + R_{μναβ}R^{μναβ}
-        gb_term = scalar**2 - 4*ricci_squared + riemann_squared
-        
+        # R_abmn R^abmn = g^ap g^bq g^mr g^ns R_abmn R_pqrs
+        riemann_squared = torch.einsum(
+            "iabmn,iap,ibq,imr,ins,ipqrs->i", rl, g_inv, g_inv, g_inv, g_inv, rl
+        )
+
+        gb_term = scalar**2 - 4 * ricci_squared + riemann_squared
+
         self._gauss_bonnet_term = gb_term
         return gb_term
 

@@ -112,24 +112,21 @@ def run_one(theta: float, cfg: dict) -> dict:
     n_half = num_qubits // 2
     partition = list(range(n_half))
 
-    # Compute entropy and gradient
+    # Reference entropy of the half-system bipartition
     S_ent = entropy_module.compute_entanglement_entropy(psi, partition).item()
-    grad  = entropy_module.entropy_gradient(psi, partition).real.detach().to(device)
-
-    # Project gradient to spacetime dim
-    dim = geometry.dimensions
-    bg = grad[:dim] if grad.shape[0] >= dim else torch.cat(
-        [grad, torch.zeros(dim - grad.shape[0], dtype=grad.dtype, device=device)]
-    )
 
     r_grid  = torch.linspace(cfg["r_min"], cfg["r_max"], cfg["lattice_size"],
                               dtype=dtype, device=device)
-    sigma   = cfg["localization_sigma"]
-    weights = torch.exp(-r_grid ** 2 / (2.0 * sigma ** 2))
-    weights = weights / (weights.max() + 1e-12)
 
-    hbar_factor = coupling.hbar_factor * coupling.coupling_strength
-    N = cfg["lattice_size"]
+    # Entropy field S(r) computed from the actual state: qubits clustered
+    # near r_min, S(r) = entropy of the qubits inside radius r.  No
+    # hand-placed spatial profile.
+    qubit_positions = np.linspace(
+        cfg["r_min"], cfg["r_min"] + cfg["cluster_width"], num_qubits
+    ).tolist()
+    S_field = entropy_module.entropy_profile(
+        psi, qubit_positions, r_grid, interpolation="linear"
+    ).detach()
 
     optimizer = torch.optim.Adam([geometry.metric_field], lr=cfg["learning_rate"])
 
@@ -138,12 +135,7 @@ def run_one(theta: float, cfg: dict) -> dict:
         geometry._clear_cache()
 
         G_all = geometry.compute_einstein_tensor()
-        grads_field = weights.unsqueeze(1) * bg.unsqueeze(0)
-        outer       = torch.einsum("ni,nj->nij", grads_field, grads_field)
-        contraction = torch.sum(grads_field ** 2, dim=1)
-        g           = geometry.metric_field
-
-        T_all = hbar_factor * (outer - (1.0 / dim) * g * contraction.view(N, 1, 1))
+        T_all = coupling.compute_stress_tensor_field(S_field)
         residual  = G_all - T_all
         total_loss = torch.sum(residual ** 2)
 
@@ -157,7 +149,7 @@ def run_one(theta: float, cfg: dict) -> dict:
     r_s_fit    = fit_schwarzschild_radius(r_np, g_tt_final)
 
     # Explicit CUDA memory cleanup — prevents OOM on successive runs
-    del geometry, qe, entropy_module, coupling, optimizer, r_grid, weights, bg, grad, psi
+    del geometry, qe, entropy_module, coupling, optimizer, r_grid, S_field, psi
 
     return {"theta": theta, "S_ent": S_ent, "r_s": r_s_fit}
 
@@ -187,7 +179,7 @@ def main():
         "r_min":              0.5,
         "r_max":              5.0,
         "num_qubits":         4,
-        "localization_sigma": 0.8,
+        "cluster_width":      1.5,
         "n_iterations":       args.iterations,
         "learning_rate":      1e-3,
         "device":             device,
@@ -215,66 +207,17 @@ def main():
             results.append({"theta": theta, "S_ent": 0.0, "r_s": 0.0})
             continue
 
-        # Write a tiny worker script to a temp file and run it.
-        # Inline the run_one logic to avoid circular import issues.
+        # Write a tiny worker script to a temp file and run it.  The worker
+        # delegates to run_one() so there is exactly one copy of the
+        # experiment logic (the honest entropy-field pipeline).
         worker_code = f"""
 import sys, json, os
 sys.path.insert(0, {repr(str(Path(__file__).parent.parent))})
 os.chdir({repr(str(Path(__file__).parent.parent))})
-import numpy as np
-import torch
-from core.quantum_engine import QuantumEngine, QuantumConfig
-from core.geometry_engine import GeometryEngine
-from core.entropy_module import EntropyModule
-from core.coupling_layer import CouplingLayer, StressTensorFormulation
-from examples.schwarzschild_test import fit_schwarzschild_radius
+from examples.scaling_experiment import run_one
 
-theta = {theta}
-cfg = {repr(cfg)}
-
-device = torch.device(cfg["device"])
-dtype  = torch.float64
-geometry = GeometryEngine(dimensions=2, lattice_size=cfg["lattice_size"],
-    dx=float(cfg["r_max"]-cfg["r_min"])/(cfg["lattice_size"]-1),
-    initial_metric="minkowski", boundary_condition="dirichlet", dtype=dtype, device=device)
-num_qubits = cfg["num_qubits"]
-qe = QuantumEngine(QuantumConfig(num_qubits=num_qubits, depth=2))
-em = EntropyModule(qe, include_edge_modes=False, conformal_invariance=True)
-coupling = CouplingLayer(geometry_engine=geometry, entropy_module=em, coupling_strength=1.0,
-    stress_form=StressTensorFormulation.MASSLESS, include_edge_modes=False, conformal_invariance=True)
-
-psi = torch.zeros(2**num_qubits, dtype=torch.complex128)
-psi[0]  = float(np.cos(theta))
-psi[-1] = float(np.sin(theta))
-partition = list(range(num_qubits//2))
-S_ent = em.compute_entanglement_entropy(psi, partition).item()
-grad  = em.entropy_gradient(psi, partition).real.detach().to(device)
-dim   = geometry.dimensions
-bg    = grad[:dim] if grad.shape[0] >= dim else torch.cat([grad, torch.zeros(dim-grad.shape[0], dtype=grad.dtype, device=device)])
-
-r_grid  = torch.linspace(cfg["r_min"], cfg["r_max"], cfg["lattice_size"], dtype=dtype, device=device)
-weights = torch.exp(-r_grid**2/(2.0*cfg["localization_sigma"]**2))
-weights = weights/(weights.max()+1e-12)
-hbar_f  = coupling.hbar_factor * coupling.coupling_strength
-N = cfg["lattice_size"]
-opt = torch.optim.Adam([geometry.metric_field], lr=cfg["learning_rate"])
-
-for _ in range(cfg["n_iterations"]):
-    opt.zero_grad(); geometry._clear_cache()
-    G     = geometry.compute_einstein_tensor()
-    gf    = weights.unsqueeze(1)*bg.unsqueeze(0)
-    outer = torch.einsum("ni,nj->nij", gf, gf)
-    cont  = torch.sum(gf**2, dim=1)
-    g     = geometry.metric_field
-    T     = hbar_f*(outer-(1.0/dim)*g*cont.view(N,1,1))
-    loss  = torch.sum((G-T)**2)
-    loss.backward(); torch.nn.utils.clip_grad_norm_([geometry.metric_field],1.0); opt.step()
-    geometry._enforce_symmetry()
-
-gtt = geometry.metric_field[:,0,0].detach().cpu().numpy()
-r_np = r_grid.cpu().numpy()
-r_s  = fit_schwarzschild_radius(r_np, gtt)
-print("RESULT:" + json.dumps({{"theta":theta,"S_ent":S_ent,"r_s":r_s}}))
+r = run_one({theta}, {repr(cfg)})
+print("RESULT:" + json.dumps(r))
 """
         with _tf.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(worker_code)

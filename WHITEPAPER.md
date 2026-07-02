@@ -1,5 +1,15 @@
 # EntropicUnification: A Differentiable Framework for Learning Spacetime Geometry from Quantum Entanglement
 
+> ⚠️ **RESULTS WITHDRAWN (v1.3, July 2026).** The quantitative results in this
+> document were produced by the v1.2 pipeline, which contained implementation
+> defects that made the headline findings circular: the spatial entropy profile
+> was inserted by hand as a Gaussian, curvature tensors did not implement the
+> stated metric ansatz, and contractions omitted the inverse metric.  See
+> "Results Status (v1.3)" in README.md for details.  Do not cite or submit the
+> numbers below.  This document is retained as a record of the theoretical
+> framing only, pending re-runs on the corrected v1.3 pipeline.
+
+
 **A Computational Approach to the Entanglement-Gravity Correspondence**
 
 ---

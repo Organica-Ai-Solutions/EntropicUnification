@@ -19,4 +19,4 @@ pandas>=1.3.0      # For data manipulation
 kaleido>=0.2.1     # For static image export in Plotly
 wandb>=0.12.0      # For experiment tracking
 mypy>=0.910        # For type checking
-yaml>=0.2.5        # For configuration files
+pyyaml>=6.0        # For configuration files
