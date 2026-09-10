@@ -69,6 +69,7 @@ class CouplingLayer:
         stress_form: Union[str, StressTensorFormulation] = StressTensorFormulation.JACOBSON,
         include_edge_modes: bool = False,
         allow_legacy_heuristic: bool = False,
+        covariant_hessian: bool = True,
         include_higher_curvature: bool = False,
         conformal_invariance: bool = False,
         hbar_factor: float = 1.0 / (2.0 * math.pi),  # ℏ/(2π) in natural units
@@ -112,6 +113,11 @@ class CouplingLayer:
         # Setting it here, once, keeps the acknowledgement visible at the
         # construction site instead of scattered through call sites.
         self.allow_legacy_heuristic = allow_legacy_heuristic
+        # FAULKNER's Hessian. True (default) uses the covariant
+        # ∇_μ∇_νS = ∂_μ∂_νS − Γ^λ_{μν}∂_λS, which is what the formulation
+        # actually names. False restores the pre-v1.4 coordinate second
+        # derivative, kept only so the two can be compared.
+        self.covariant_hessian = covariant_hessian
 
     # ------------------------------------------------------------------
     # Stress-energy tensors induced by entropy gradients
@@ -488,12 +494,28 @@ class CouplingLayer:
         elif form == StressTensorFormulation.CANONICAL:
             T = self.hbar_factor * outer
         elif form == StressTensorFormulation.FAULKNER:
-            # T_μν = (ℏ/2π)[∇_μ∇_νS − (□S) g_μν] with the honest spatial
-            # Hessian: for a static field on a 1-D lattice the only nonzero
-            # second derivative is ∂₁∂₁S.
+            # T_μν = (ℏ/2π)[∇_μ∇_νS − (□S) g_μν] with the *covariant* Hessian
+            #
+            #     ∇_μ∇_νS = ∂_μ∂_νS − Γ^λ_{μν} ∂_λS
+            #
+            # The Christoffel term is not optional bookkeeping.  Dropping it
+            # (as this code did before v1.4) leaves the coordinate second
+            # derivative, whose only nonzero entry is ∂₁∂₁S — so ∇₀∇₀S reads
+            # as zero even where Γ¹₀₀ ∂₁S is not, and the tensor is not the
+            # one the docstring names.  It only coincides with the covariant
+            # Hessian on a flat metric, which is exactly the configuration
+            # the optimizer moves away from.
             d2S = fixed_finite_difference(s_field, order=2, axis=0, dx=dx)
-            hessian = torch.zeros((n_points, dim, dim), dtype=g.dtype, device=g.device)
-            hessian[:, 1, 1] = d2S
+            coord_hessian = torch.zeros((n_points, dim, dim), dtype=g.dtype,
+                                        device=g.device)
+            coord_hessian[:, 1, 1] = d2S
+            if self.covariant_hessian:
+                # gamma[n, a, b, c] = Γ^a_{bc}
+                gamma = self.geometry.compute_christoffel_symbols(g)
+                connection = torch.einsum("nlmv,nl->nmv", gamma, grads)
+                hessian = coord_hessian - connection
+            else:
+                hessian = coord_hessian
             box_S = torch.einsum("nab,nab->n", g_inv, hessian)
             T = self.hbar_factor * (hessian - box_S.view(n_points, 1, 1) * g)
             # FAULKNER is NOT traceless: g^uv[∇_u∇_vS − (□S)g_uv] = (1−n)□S.

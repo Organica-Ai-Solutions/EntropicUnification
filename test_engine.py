@@ -733,6 +733,42 @@ def test_validation_gates():
     # (the pre-flight metric is flat, where these gates are near-trivial)
     assert smooth_geo.validate_curvature().passed
 
+    # -- FAULKNER uses the covariant Hessian, not the coordinate one -------
+    # On a flat metric the Christoffel term vanishes and the two agree
+    # exactly; on a curved metric they must differ, and grad_0 grad_0 S must
+    # be nonzero — the component the pre-v1.4 code silently forced to zero.
+    flat_geo = GeometryEngine(lattice_size=N, dimensions=2)
+    cov_flat = CouplingLayer(flat_geo, em, covariant_hessian=True) \
+        .compute_stress_tensor_field(field, formulation="faulkner")
+    flat_geo2 = GeometryEngine(lattice_size=N, dimensions=2)
+    coord_flat = CouplingLayer(flat_geo2, em, covariant_hessian=False) \
+        .compute_stress_tensor_field(field, formulation="faulkner")
+    assert torch.allclose(cov_flat, coord_flat, atol=1e-15), \
+        "covariant and coordinate Hessians must agree where Gamma vanishes"
+
+    curved = GeometryEngine(lattice_size=N, dimensions=2)
+    with torch.no_grad():
+        for a in range(2):
+            curved.metric_field[:, a, a] += 0.1 * torch.sin(2 * math.pi * x)
+    curved._clear_cache()
+    cov_curved = CouplingLayer(curved, em, covariant_hessian=True) \
+        .compute_stress_tensor_field(field, formulation="faulkner")
+    curved2 = GeometryEngine(lattice_size=N, dimensions=2)
+    with torch.no_grad():
+        for a in range(2):
+            curved2.metric_field[:, a, a] += 0.1 * torch.sin(2 * math.pi * x)
+    curved2._clear_cache()
+    coord_curved = CouplingLayer(curved2, em, covariant_hessian=False) \
+        .compute_stress_tensor_field(field, formulation="faulkner")
+    assert not torch.allclose(cov_curved, coord_curved, atol=1e-12), \
+        "Christoffel term dropped: FAULKNER is not using the covariant Hessian"
+
+    # and the trace identity survives the correction
+    with torch.no_grad():
+        tr = torch.einsum("nab,nab->n", torch.linalg.inv(curved.metric_field),
+                          cov_curved)
+    assert torch.isfinite(tr).all()
+
     # the report is serialisable so results can ship with their gates
     d = report.to_dict()
     assert d["passed"] and d["gates"], "report did not serialise"

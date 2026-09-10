@@ -102,7 +102,7 @@ limitations rather than quietly dropped:
 | missing `1/dx` is invisible to the gates (relative violations are scale-invariant) | documented; covered by the derivative tests instead |
 | `check_metric_resolved` passes noise below ~0.8% of \|g\| | documented; `converges_under_refinement()` added as the real test, not wired in by default (needs two resolutions) |
 | provenance is attestation + tamper-evidence, not proof | documented |
-| FAULKNER uses the coordinate Hessian, not the covariant one | **open issue** — the docstring says `grad_mu grad_nu S`; the code omits the Christoffel term |
+| FAULKNER used the coordinate Hessian, not the covariant one | **fixed in v1.4** — the Christoffel term is included; flat metrics agree exactly, curved ones differ by ~0.2%, and `grad_0 grad_0 S` (previously forced to zero) is nonzero |
 
 ## Honest results
 
@@ -130,9 +130,6 @@ framework can currently perform.
 
 ## Next steps, in order of honesty-weighted value
 
-0. **Fix the FAULKNER Hessian** to the covariant form, or change the
-   documentation to say it is the coordinate second derivative. The two
-   currently disagree.
 1. **≥3+1D.** Everything else is secondary. Until then no result here bears on
    the conjecture.
 2. **Make dimension an output, not an input.** A framework claiming geometry

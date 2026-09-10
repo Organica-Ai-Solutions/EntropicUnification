@@ -95,15 +95,26 @@ against the prediction, the match is exact:
 | n=2 | 1.103e-1 | 1.103e-1 | 0.00 |
 | n=4 | 3.310e-1 | 3.310e-1 | 5.2e-18 |
 
-**Caveat on what this verifies.** The implemented Hessian is the *coordinate*
-second derivative `d2S/dr2`, not the covariant `grad_mu grad_nu S =
-d_mu d_nu S - Gamma^l_{mu nu} d_l S`. For a non-flat optimised metric the
-Christoffel term is nonzero, so `grad_0 grad_0 S != 0` while the code sets it
-to zero. Because `faulkner_trace` is built from the same `box_S` as `T`, the
-match above confirms **internal algebraic consistency of the formula as
-implemented**, not that the implemented formula is the covariant Hessian. That
-discrepancy between the docstring's `grad_mu grad_nu S` and the code is a real
-open issue, listed in PROGRESS_REPORT.md.
+**Resolved in v1.4.** This gate originally verified only internal algebraic
+consistency: the implemented Hessian was the *coordinate* second derivative
+`d2S/dr2`, not the covariant
+
+    grad_mu grad_nu S = d_mu d_nu S - Gamma^lambda_{mu nu} d_lambda S
+
+and `faulkner_trace` was built from the same `box_S` as `T`, so the two agreed
+by construction whatever the Hessian was. The Christoffel term is now
+included. Measured consequences:
+
+| check | dim 2 | dim 4 |
+|---|---|---|
+| flat metric: covariant vs coordinate | 0.000e+00 | 0.000e+00 |
+| curved metric: relative difference | 2.32e-3 | 2.04e-3 |
+| `grad_0 grad_0 S` (forced to zero before) | 1.24e-3 | 1.24e-3 |
+| trace vs `(1-n) BoxS` | 1.34e-16 | 1.79e-16 |
+
+The two agree exactly where `Gamma` vanishes, differ where it does not, and
+the trace identity survives the correction. `CouplingLayer(...,
+covariant_hessian=False)` restores the old behaviour for comparison.
 
 Note what did *not* happen: the formulation was not quietly switched to a
 traceless variant to make the gate pass. Changing `(BoxS) g_uv` to

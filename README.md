@@ -117,9 +117,8 @@ default state of the code.
   parameter fails to fall under refinement
   (`converges_under_refinement`).
 - Provenance is an attestation plus a tamper-evidence digest, not a proof.
-- FAULKNER's Hessian is the coordinate second derivative, not the covariant
-  one; the trace gate confirms internal consistency of the implemented
-  formula, not that the formula matches its docstring.
+- The gates verify internal consistency of each formulation's algebra; they
+  cannot tell you the formulation is the physically right one to test.
 
 Full rationale and tolerance calibration: [docs/VALIDATION.md](docs/VALIDATION.md).
 

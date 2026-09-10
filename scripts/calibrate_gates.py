@@ -142,9 +142,9 @@ def faulkner_trace_table() -> None:
         print(f"  n={dims}: max|trace|={float(trace.abs().max()):.3e}  "
               f"predicted={float(pred.abs().max()):.3e}  "
               f"relative mismatch={mismatch:.2e}")
-    print("\n  Caveat: the Hessian here is the coordinate second derivative,")
-    print("  not the covariant one (no Christoffel term), so this verifies")
-    print("  internal algebraic consistency of the implemented formula.")
+    print("\n  The Hessian is the covariant one (Christoffel term included)")
+    print("  as of v1.4; pass covariant_hessian=False to CouplingLayer to")
+    print("  reproduce the pre-v1.4 coordinate second derivative.")
 
 
 if __name__ == "__main__":
