@@ -1,0 +1,286 @@
+# Pipeline validation
+
+## Why this exists
+
+v1.2 of this project reported a Schwarzschild recovery with a Pearson
+correlation of 0.78. The number was an artifact: the "entropy field" had a
+Gaussian profile placed into it by hand, so the metric well the optimiser
+found was a restatement of the input, not an emergent property of
+entanglement.
+
+Nothing in the code objected. Every consistency check was **advisory** — a
+float printed to stdout that a human had to read, interpret, and act on. Worse,
+one defect actively suppressed its own detection: Riemann symmetries were
+*projected onto* the mixed-index tensor (where they do not hold), so the
+identity diagnostics reported near-zero violations precisely because the
+curvature was being corrupted.
+
+The lesson is not "be more careful." It is that a check nobody is forced to
+read is not a check. `core/validation.py` turns them into gates that abort.
+
+## The rule
+
+> A defect that would invalidate a published number must **raise**, not warn.
+
+Everything else follows from that.
+
+## Gates
+
+### `check_entropy_provenance` — the v1.2 gate
+
+An entropy field is admissible as physics only if it was computed from partial
+traces of an actual quantum state. This is enforced by making the data carry
+the claim:
+
+```python
+S = entropy_module.entropy_field(ghz, qubit_positions, r_grid)
+S.provenance          # partial_trace [derived] (num_qubits=6, state_norm=1.0, ...)
+```
+
+`CouplingLayer.compute_stress_tensor_field` **refuses a bare tensor**:
+
+```python
+coupling.compute_stress_tensor_field(S.values)   # ProvenanceError
+coupling.compute_stress_tensor_field(S)          # fine
+```
+
+A raw tensor is not rejected because tensors are wrong. It is rejected because
+nothing about a tensor records whether its spatial structure was *computed* or
+*inserted*, and that distinction is the entire difference between v1.2 and
+v1.3. Fields that are knowingly not derived are constructed explicitly and
+still gated:
+
+```python
+EntropyField.unverified(profile, "analytic")       # honest, still refused by default
+EntropyField.unverified(profile, "partial_trace")  # ValueError: cannot fake derivation
+EntropyField(profile, Provenance("partial_trace")) # ProvenanceError: needs the state
+```
+
+`EntropyField` is frozen, and its constructor rejects a derived provenance
+supplied directly — only `from_partial_traces` (which requires the state) can
+mint one. A `values_digest` recorded at construction is re-checked by the gate,
+so swapping the numbers afterwards is detected.
+
+**What this is and is not.** It is an attestation about how the object was
+built, plus a tamper-evidence check on the values. It is *not* a proof that the
+numbers are entanglement entropies — a sufficiently determined caller can still
+reach into the module internals. The goal is to make the v1.2 mistake
+impossible to make *by accident* and impossible to make *invisibly*, not to
+defeat an adversary.
+
+### `check_trace_identity` and `check_tracelessness`
+
+Every stress tensor formulation has a trace fixed by its own algebra:
+
+| formulation | predicted `g^uv T_uv` |
+|---|---|
+| MASSLESS | `0` — the `1/n` coefficient makes it traceless in any dimension |
+| FAULKNER | `(1-n) BoxS` — **not** traceless |
+| LAGRANGIAN, CANONICAL, MODIFIED | no fixed value; gate reports as skipped |
+
+Checking the *predicted* value is strictly stronger than checking for zero,
+and it catches the same defect: v1.2 used a Euclidean dot product where
+`g^uv` belongs, which breaks the trace identity whatever that identity is.
+Measured relative to `||T||`, so the check is scale-free. Exact float64
+algebra lands at ~1e-17; the tolerance is 1e-10.
+
+**This gate found a real error on its first run.** The README described
+FAULKNER as traceless while printing, in the same table row, the formula
+`grad_u grad_v S - (BoxS) g_uv` — whose trace is `(1-n) BoxS`, zero only in
+`n=1`. The implementation was correct; the documentation was not. Measured
+against the prediction, the match is exact:
+
+| dimension | max abs trace | predicted `(1-n) BoxS` | relative mismatch |
+|---|---|---|---|
+| n=2 | 1.103e-1 | 1.103e-1 | 0.00 |
+| n=4 | 3.310e-1 | 3.310e-1 | 5.2e-18 |
+
+**Caveat on what this verifies.** The implemented Hessian is the *coordinate*
+second derivative `d2S/dr2`, not the covariant `grad_mu grad_nu S =
+d_mu d_nu S - Gamma^l_{mu nu} d_l S`. For a non-flat optimised metric the
+Christoffel term is nonzero, so `grad_0 grad_0 S != 0` while the code sets it
+to zero. Because `faulkner_trace` is built from the same `box_S` as `T`, the
+match above confirms **internal algebraic consistency of the formula as
+implemented**, not that the implemented formula is the covariant Hessian. That
+discrepancy between the docstring's `grad_mu grad_nu S` and the code is a real
+open issue, listed in PROGRESS_REPORT.md.
+
+Note what did *not* happen: the formulation was not quietly switched to a
+traceless variant to make the gate pass. Changing `(BoxS) g_uv` to
+`(1/n)(BoxS) g_uv` would be a physics decision about which tensor to test,
+not a bug fix, and it would have destroyed the evidence that the docs and the
+code disagreed.
+
+### `check_riemann_identities`
+
+The **lowered** Riemann tensor must satisfy antisymmetry in each index pair,
+pair-exchange symmetry, and the first Bianchi identity. Measured by
+`GeometryEngine.riemann_identity_violations()` and gated here — never imposed.
+
+On a lattice these identities are not exact: they hold up to second-order
+finite-difference error, so an absolute threshold is meaningless on its own —
+it is too tight on a coarse lattice and too loose on a fine one. What is
+meaningful is the **ratio** of the measured violation to the truncation error
+the metric's own smoothness predicts. A correct implementation sits near 1 at
+every resolution; a wrong one does not, however fine the lattice.
+
+### `check_metric_resolved`
+
+The lattice must actually resolve the metric's variation. The gate quantity is
+the dimensionless `eps = ||d2g|| dx^2 / ||g||`, i.e. `(dx/lambda)^2` for a
+metric varying on length `lambda`.
+
+This is a *different* failure from the one above. A field of per-site noise
+has no continuum limit at all — there is no metric there to take the curvature
+of, and every derived tensor is meaningless no matter how carefully computed.
+Such a field produces identity violations that are perfectly "consistent with
+truncation error" (ratio ≈ 1.1), so the Riemann gate waves it through. This
+gate is what stops it.
+
+### `check_finite`
+
+No NaN or Inf may enter the loss. A diverged optimiser otherwise runs to
+completion, writes a loss history, and renders plots — all of NaN.
+
+### `check_entropy_field_sanity`
+
+`S(x)` must be non-negative (von Neumann entropy cannot be negative) and not
+constant. A constant field has no gradient, hence no source; any curvature the
+optimiser then finds is fitting numerical noise.
+
+### `check_meaningful_dimension`
+
+In two dimensions the Einstein tensor **vanishes identically** — `G_μν ≡ 0` for
+every metric, not approximately, not usually. A 1+1D run is fitting a target
+that is structurally zero, so it cannot test whether entanglement sources
+curvature.
+
+This gate is **off by default**, because switching it on fails every run the
+framework can currently perform. That is an accurate description of the
+project's status, and the gate exists so the fact cannot be quietly forgotten.
+Turning it on is how a run asserts it is meant to be physically conclusive.
+
+## Calibration
+
+Tolerances are only meaningful if they were measured rather than guessed —
+and the measurement has to be re-runnable, so it lives in the tree:
+
+```bash
+venv/bin/python scripts/calibrate_gates.py
+```
+
+Every table below is that script's output.
+
+### `traceless_tol = 1e-10` — principled
+
+The MASSLESS trace is exactly zero in exact arithmetic; observed float64
+values sit at ~1e-17. A real failure is a bug by many orders of magnitude, so
+the threshold's precise value is not load-bearing.
+
+### `riemann_error_ratio = 4.0` — measured
+
+Ratio of the worst identity violation to the predicted truncation error
+`eps`, for a smooth metric (flat + a long-wavelength sinusoid):
+
+| case | N=16 | N=32 | N=64 | N=128 | N=256 |
+|---|---|---|---|---|---|
+| dim 2, amp 0.01 | 1.45 | 1.43 | 1.42 | 1.42 | 1.42 |
+| dim 2, amp 0.1  | 1.44 | 1.43 | 1.42 | 1.42 | 1.42 |
+| dim 4, amp 0.01 | 0.83 | 0.83 | 0.82 | 0.82 | 0.82 |
+| dim 4, amp 0.1  | 0.83 | 0.82 | 0.82 | 0.82 | 0.82 |
+
+**The ratio is constant to within a few percent across 16x in resolution, two
+dimensionalities and 10x in amplitude.** The absolute violations behind these
+numbers fall by ~4.1x per lattice doubling — clean second-order convergence,
+exactly what centred finite differences should give, with a flat metric giving
+identically zero at every resolution.
+
+This is worth stating plainly: it is independent evidence that v1.3's
+curvature rewrite is correct. The identity violations are not "small"; they
+are *precisely the size discretization predicts*, and they vanish in the
+continuum limit.
+
+Observed range 0.82–1.45, so a tolerance of 4.0 leaves roughly 3x margin
+while still failing any curvature error that is not explained by
+discretization.
+
+Only `antisymmetry_first_pair` and `pair_symmetry` are ever non-zero;
+`antisymmetry_last_pair` and `first_bianchi` are satisfied to machine
+precision by construction of the discrete Riemann tensor.
+
+### `metric_resolution_tol = 2e-2` — measured, and the weakest gate here
+
+Per-site Gaussian noise added to a flat metric, N=64, dim 2:
+
+| noise amp | eps | violation | ratio | verdict |
+|---|---|---|---|---|
+| 0.0001 | 2.56e-4 | 2.87e-4 | 1.12 | **passes** |
+| 0.001  | 2.56e-3 | 2.86e-3 | 1.12 | **passes** |
+| 0.01   | 2.55e-2 | 2.86e-2 | 1.12 | fails |
+| 0.05   | 1.27e-1 | 1.42e-1 | 1.11 | fails |
+
+Note the ratio: ≈1.12 throughout. **Noise passes the Riemann gate**, because
+its identity violations really are just truncation error — of a field with no
+continuum limit. So a second gate is needed. But be clear about how much it
+buys:
+
+- `eps` scales with **amplitude as well as resolution**. It is
+  `dx²‖g''‖/‖g‖`, proportional to `(dx/λ)²` only at fixed amplitude. A
+  single-resolution threshold therefore cannot separate "unresolved" from
+  "small" in general.
+- Consequently **noise below roughly 0.8% of ‖g‖ passes this gate.** At
+  amp 1e-4 and 1e-3 it sails through at every resolution tested.
+- The threshold sits between the roughest legitimate case tested (smooth,
+  N=16, amp 0.1: eps = 1.26e-2) and noise at amp 0.01 (eps = 2.55e-2). That is
+  a 2x margin — but it is a margin between two *amplitudes*, not between
+  resolved and unresolved fields, which is a weaker statement than it looks.
+
+**The real discriminator is convergence, not magnitude.** Under refinement a
+smooth field's eps falls ~4x per doubling while noise does not move:
+
+| | N=32 | N=64 | N=128 |
+|---|---|---|---|
+| smooth, amp 0.1 | 2.94e-3 | 7.07e-4 | 1.73e-4 |
+| noise, amp 0.001 | 2.74e-4 | 2.56e-4 | 2.93e-4 |
+
+`converges_under_refinement(eps_coarse, eps_fine, cfg)` implements that test
+and is the one to use when it matters. It is not wired into
+`validate_curvature`, because that would require computing the metric at two
+resolutions on every call. Treat `check_metric_resolved` as a cheap screen for
+grossly unresolved fields, not as proof that a field is well resolved.
+
+## Relaxing a gate
+
+Every gate can be turned off:
+
+```python
+GateConfig(strict=False)                      # report everything, raise nothing
+GateConfig(require_derived_entropy=False)     # allow an inserted profile
+GateConfig(riemann_tol=1e-2)                  # loosen one tolerance
+```
+
+This is intentional — exploratory work needs to run unverified things. The
+design goal was never to make bypassing impossible; it was to make bypassing
+**explicit, local, and visible in the diff**, instead of being the default
+state of the code.
+
+## Reporting
+
+Gates accumulate into a `ValidationReport`:
+
+```python
+report = ValidationReport()
+geometry.validate_curvature(gates=cfg, report=report)
+print(report.summary())
+```
+
+```
+validation: 4/4 gates passed
+  [PASS] meaningful_dimension  2.000e+00 (tol 4.0e+00)  dim=2: the continuum Einstein tensor vanishes identically in 2D...
+  [PASS] finite:metric  0.000e+00 (tol 0.0e+00)  metric is finite
+  [PASS] riemann_identities  ...
+  [PASS] finite:einstein_tensor  ...
+```
+
+`report.to_dict()` serialises for storage alongside results, so a published
+number can be accompanied by the gates it cleared.

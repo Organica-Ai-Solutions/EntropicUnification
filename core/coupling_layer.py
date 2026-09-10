@@ -25,6 +25,11 @@ import torch
 from .entropy_module import EntropyModule
 from .geometry_engine import GeometryEngine
 from .utils.finite_difference import fixed_finite_difference
+from .validation import (EntropyField, GateConfig, ProvenanceError,
+                         ValidationReport,
+                         check_entropy_field_sanity, check_entropy_provenance,
+                         check_finite, check_trace_identity,
+                         check_tracelessness)
 
 
 class StressTensorFormulation(str, Enum):
@@ -63,6 +68,7 @@ class CouplingLayer:
         coupling_strength: float = 1.0,
         stress_form: Union[str, StressTensorFormulation] = StressTensorFormulation.JACOBSON,
         include_edge_modes: bool = False,
+        allow_legacy_heuristic: bool = False,
         include_higher_curvature: bool = False,
         conformal_invariance: bool = False,
         hbar_factor: float = 1.0 / (2.0 * math.pi),  # ℏ/(2π) in natural units
@@ -99,16 +105,34 @@ class CouplingLayer:
         # Parameters for higher-order curvature corrections
         self.alpha_GB = 0.0  # Gauss-Bonnet coupling
         self.lambda_cosmo = 0.0  # Cosmological constant
+        # Opt-in for the legacy v1.2 state-space-gradient stack
+        # (compute_entropy_stress_tensor / compute_coupling_terms). Off by
+        # default: those paths relabel state-parameter derivatives as
+        # spacetime components and must never produce a reported number.
+        # Setting it here, once, keeps the acknowledgement visible at the
+        # construction site instead of scattered through call sites.
+        self.allow_legacy_heuristic = allow_legacy_heuristic
 
     # ------------------------------------------------------------------
     # Stress-energy tensors induced by entropy gradients
     # ------------------------------------------------------------------
     def compute_entropy_stress_tensor(
-        self, 
+        self,
         entropy_gradient: torch.Tensor,
         metric: Optional[torch.Tensor] = None,
+        allow_legacy_heuristic: Optional[bool] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """Compute the stress-energy tensor from entropy gradients.
+        """LEGACY DEMO PATH — this is the v1.2 defect, kept only for comparison.
+
+        `entropy_gradient` here is a gradient with respect to quantum **state
+        parameters**, whose components are then used as if they were spacetime
+        indices.  That relabelling is precisely what invalidated the v1.2
+        results.  It is not physics and must never produce a reported number.
+
+        Raises `ProvenanceError` unless `allow_legacy_heuristic=True` is passed
+        explicitly at the call site, so using it is visible in the diff.
+        Use `compute_stress_tensor_field()` for the real pipeline.
+
         
         Args:
             entropy_gradient: Gradient of entropy with respect to state parameters
@@ -125,6 +149,17 @@ class CouplingLayer:
             tensor built from an entropy field S(x) on the lattice, use
             compute_stress_tensor_field() instead.
         """
+        if allow_legacy_heuristic is None:
+            allow_legacy_heuristic = self.allow_legacy_heuristic
+        if not allow_legacy_heuristic:
+            raise ProvenanceError(
+                "compute_entropy_stress_tensor() is the legacy state-space-"
+                "gradient heuristic: it relabels derivatives with respect to "
+                "state parameters as spacetime components, which is the v1.2 "
+                "defect. Use compute_stress_tensor_field() with an EntropyField, "
+                "or pass allow_legacy_heuristic=True to run it knowingly."
+            )
+
         if not getattr(self, "_projection_warned", False):
             warnings.warn(
                 "compute_entropy_stress_tensor() projects a state-space "
@@ -359,9 +394,11 @@ class CouplingLayer:
 
     def compute_stress_tensor_field(
         self,
-        entropy_field: torch.Tensor,
+        entropy_field: Union[torch.Tensor, "EntropyField"],
         metric_field: Optional[torch.Tensor] = None,
         formulation: Optional[Union[str, StressTensorFormulation]] = None,
+        gates: Optional[GateConfig] = None,
+        report: Optional[ValidationReport] = None,
     ) -> torch.Tensor:
         """Compute T_μν(x) over the whole lattice from an entropy field S(x).
 
@@ -376,16 +413,39 @@ class CouplingLayer:
         All contractions use the inverse metric, so the MASSLESS form is
         traceless exactly and identically: g^μν T_μν = 0 by construction.
 
+        The entropy field is gated before use: it must be an `EntropyField`
+        whose provenance records derivation from partial traces of a real
+        quantum state.  A bare tensor is refused, because nothing about a
+        tensor records whether its spatial structure was computed or inserted
+        by hand — and an inserted profile is precisely what invalidated the
+        v1.2 results.  Pass `gates=GateConfig(require_derived_entropy=False)`
+        to bypass this deliberately.
+
         Args:
-            entropy_field: S(x), shape (lattice_size,).
+            entropy_field: S(x) as an `EntropyField` (shape (lattice_size,)).
+                A raw tensor is accepted only when the provenance gate is
+                explicitly disabled.
             metric_field: g_μν(x), shape (lattice_size, dim, dim); defaults to
                 the geometry engine's current metric field (autograd flows
                 through it).
             formulation: Stress tensor formulation; defaults to self.stress_form.
+            gates: Gate configuration; defaults to strict `GateConfig()`.
+            report: Optional `ValidationReport` collecting gate results.
 
         Returns:
             T_μν(x) with shape (lattice_size, dim, dim).
+
+        Raises:
+            ProvenanceError: the entropy field is not derived from a state.
+            ValidationError: the field is degenerate, or the resulting tensor
+                is non-finite or fails tracelessness for a traceless form.
         """
+        cfg = GateConfig() if gates is None else gates
+        check_entropy_provenance(entropy_field, cfg, report)
+        check_entropy_field_sanity(entropy_field, cfg, report)
+        if isinstance(entropy_field, EntropyField):
+            entropy_field = entropy_field.values
+
         g = self.geometry.metric_field if metric_field is None else metric_field
         dim = self.geometry.dimensions
         n_points = g.shape[0]
@@ -436,6 +496,9 @@ class CouplingLayer:
             hessian[:, 1, 1] = d2S
             box_S = torch.einsum("nab,nab->n", g_inv, hessian)
             T = self.hbar_factor * (hessian - box_S.view(n_points, 1, 1) * g)
+            # FAULKNER is NOT traceless: g^uv[∇_u∇_vS − (□S)g_uv] = (1−n)□S.
+            # Verified against that prediction rather than against zero.
+            faulkner_trace = (1 - dim) * box_S * self.hbar_factor
         elif form == StressTensorFormulation.MODIFIED:
             ricci = self.geometry.compute_ricci_tensor(g)
             alpha = 0.1  # non-conformality parameter
@@ -445,7 +508,18 @@ class CouplingLayer:
         else:
             raise ValueError(f"Unknown stress tensor formulation: {form}")
 
-        return self.coupling_strength * T
+        T = self.coupling_strength * T
+
+        # Output gates: a wrong contraction shows up as a non-zero trace in a
+        # formulation that is traceless by construction, and a diverged run
+        # shows up as NaN. Both must stop the pipeline, not decorate it.
+        check_finite("stress_tensor", T, cfg, report)
+        if form == StressTensorFormulation.FAULKNER:
+            check_trace_identity(T, g, faulkner_trace * self.coupling_strength,
+                                 cfg, report, label="faulkner ((1-n)□S)")
+        else:
+            check_tracelessness(T, g, form.value, cfg, report)
+        return T
 
     def compute_tracelessness_violation(
         self,
@@ -551,7 +625,8 @@ class CouplingLayer:
     def compute_coupling_terms(
         self, 
         state: torch.Tensor, 
-        partition: list
+        partition: list,
+        allow_legacy_heuristic: Optional[bool] = None,
     ) -> CouplingTerms:
         """Compute all coupling terms between entropy and geometry.
         
@@ -561,6 +636,12 @@ class CouplingLayer:
             
         Returns:
             CouplingTerms object containing all relevant tensors
+
+        Note:
+            This path runs the LEGACY state-space-gradient heuristic (the v1.2
+            defect) and therefore raises unless `allow_legacy_heuristic=True`.
+            It is retained for comparison against the honest pipeline in
+            `compute_stress_tensor_field()`, not for producing results.
         """
         # Compute entropy gradient with edge mode handling
         entropy_grad = self.entropy.entropy_gradient(
@@ -571,7 +652,8 @@ class CouplingLayer:
         )
         
         # Compute stress tensor
-        T, edge_contribution = self.compute_entropy_stress_tensor(entropy_grad)
+        T, edge_contribution = self.compute_entropy_stress_tensor(
+            entropy_grad, allow_legacy_heuristic=allow_legacy_heuristic)
         
         # Compute Einstein tensor
         G, higher_curvature = self.compute_einstein_tensor()

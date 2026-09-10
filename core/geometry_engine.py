@@ -22,6 +22,9 @@ from typing import Dict, List, Optional, Tuple, Union
 from enum import Enum
 
 from .utils.finite_difference import fixed_finite_difference
+from .validation import (GateConfig, ValidationReport, check_finite,
+                         check_meaningful_dimension, check_metric_resolved,
+                         check_riemann_identities)
 
 
 class BoundaryCondition(str, Enum):
@@ -323,9 +326,10 @@ class GeometryEngine(nn.Module):
             Christoffel symbols with shape [lattice_size, d, d, d]
         """
         cache_key = "christoffel"
-        if cache_key in self._cache:
+        use_cache = self._cacheable(metric)
+        if use_cache and cache_key in self._cache:
             return self._cache[cache_key]
-            
+
         if metric is None:
             metric = self.metric_field
             
@@ -357,7 +361,8 @@ class GeometryEngine(nn.Module):
         christoffel = 0.5 * torch.einsum("ims,isab->imab", g_inv, s_term)
 
         # Cache the result
-        self._cache[cache_key] = christoffel
+        if use_cache:
+            self._cache[cache_key] = christoffel
         return christoffel
         
     def compute_riemann_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -370,9 +375,10 @@ class GeometryEngine(nn.Module):
             Riemann tensor with shape [lattice_size, d, d, d, d]
         """
         cache_key = "riemann"
-        if cache_key in self._cache:
+        use_cache = self._cacheable(metric)
+        if use_cache and cache_key in self._cache:
             return self._cache[cache_key]
-            
+
         if metric is None:
             metric = self.metric_field
             
@@ -406,7 +412,8 @@ class GeometryEngine(nn.Module):
         riemann = term1 + term2
 
         # Cache the result
-        self._cache[cache_key] = riemann
+        if use_cache:
+            self._cache[cache_key] = riemann
         return riemann
 
     def lower_riemann_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -426,7 +433,7 @@ class GeometryEngine(nn.Module):
         discretization error or an unphysical metric state — they are
         reported, never silently projected away.
         """
-        rl = self.lower_riemann_tensor(metric)
+        rl = self.lower_riemann_tensor(metric).detach()
         norm = torch.linalg.norm(rl.flatten()) + 1e-30
         antisym_first = torch.linalg.norm((rl + rl.transpose(1, 2)).flatten()) / norm
         antisym_last = torch.linalg.norm((rl + rl.transpose(3, 4)).flatten()) / norm
@@ -441,6 +448,76 @@ class GeometryEngine(nn.Module):
             "first_bianchi": float(bianchi),
         }
     
+    def _cacheable(self, metric: Optional[torch.Tensor]) -> bool:
+        """Whether a result computed from `metric` may use the shared cache.
+
+        The curvature caches are keyed by name only ("christoffel", "riemann"),
+        so they are valid solely for `self.metric_field`.  Passing a different
+        metric and hitting a warm cache silently mixes tensors from two
+        different metrics — the lowering step would combine cached Christoffels
+        of one with the metric of another, producing a result belonging to
+        neither.  An explicitly supplied foreign metric therefore bypasses the
+        cache entirely.
+        """
+        return metric is None or metric is self.metric_field
+
+    def metric_truncation_scale(
+        self, metric: Optional[torch.Tensor] = None
+    ) -> float:
+        """Dimensionless truncation parameter ``||d2g|| dx^2 / ||g||``.
+
+        This is ``(dx/lambda)^2`` for a metric varying on characteristic
+        length ``lambda`` — the size of the second-order finite-difference
+        error in every derived tensor.  It is what makes the Riemann identity
+        gate resolution-independent: the violations are compared against the
+        error the metric's own smoothness predicts, rather than against a
+        constant that is too tight on a coarse lattice and too loose on a
+        fine one.
+
+        A smooth, well-resolved metric gives a small value that falls as the
+        lattice refines.  Per-site noise gives a large value that does not.
+        """
+        m = self.metric_field if metric is None else metric
+        with torch.no_grad():
+            m = m.detach()
+            if m.shape[0] < 3:
+                return 0.0
+            # second difference in lattice units; the dx^2 of the derivative
+            # and the dx^2 of the error cancel, so this is already the
+            # dimensionless ratio.
+            d2 = m[2:] - 2.0 * m[1:-1] + m[:-2]
+            return float(
+                torch.linalg.norm(d2.flatten())
+                / (torch.linalg.norm(m[1:-1].flatten()) + 1e-30)
+            )
+
+    def validate_curvature(
+        self,
+        metric: Optional[torch.Tensor] = None,
+        gates: Optional[GateConfig] = None,
+        report: Optional[ValidationReport] = None,
+    ) -> ValidationReport:
+        """Gate the curvature pipeline: identities, finiteness, dimension.
+
+        Call this before trusting anything computed from the metric. Unlike
+        `riemann_identity_violations`, which reports numbers a human has to
+        notice, this raises when a tolerance is exceeded — v1.2's curvature
+        was wrong while every printed diagnostic looked fine, because the
+        symmetries had been projected in rather than checked.
+        """
+        cfg = GateConfig() if gates is None else gates
+        rep = ValidationReport() if report is None else report
+        m = self.metric_field if metric is None else metric
+
+        check_meaningful_dimension(self.dimensions, cfg, rep)
+        check_finite("metric", m, cfg, rep)
+        truncation = self.metric_truncation_scale(m)
+        check_metric_resolved(truncation, cfg, rep)
+        check_riemann_identities(self.riemann_identity_violations(m), cfg, rep,
+                                 truncation=truncation)
+        check_finite("einstein_tensor", self.compute_einstein_tensor(m), cfg, rep)
+        return rep
+
     def compute_ricci_tensor(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Compute the Ricci tensor by contracting the Riemann tensor.
         
@@ -451,7 +528,8 @@ class GeometryEngine(nn.Module):
             Ricci tensor with shape [lattice_size, d, d]
         """
         cache_key = "ricci"
-        if cache_key in self._cache:
+        use_cache = self._cacheable(metric)
+        if use_cache and cache_key in self._cache:
             return self._cache[cache_key]
         
         if metric is None:
@@ -467,7 +545,8 @@ class GeometryEngine(nn.Module):
         ricci = torch.einsum("ilmln->imn", riemann)
 
         # Cache the result
-        self._cache[cache_key] = ricci
+        if use_cache:
+            self._cache[cache_key] = ricci
         return ricci
     
     def compute_ricci_scalar(self, metric: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -480,7 +559,8 @@ class GeometryEngine(nn.Module):
             Ricci scalar with shape [lattice_size]
         """
         cache_key = "ricci_scalar"
-        if cache_key in self._cache:
+        use_cache = self._cacheable(metric)
+        if use_cache and cache_key in self._cache:
             return self._cache[cache_key]
             
         if metric is None:
@@ -493,7 +573,8 @@ class GeometryEngine(nn.Module):
         scalar = torch.einsum("imn,imn->i", g_inv, ricci)
 
         # Cache the result
-        self._cache[cache_key] = scalar
+        if use_cache:
+            self._cache[cache_key] = scalar
         return scalar
     
     def compute_higher_curvature_terms(
@@ -541,7 +622,8 @@ class GeometryEngine(nn.Module):
             Einstein tensor with shape [lattice_size, d, d]
         """
         cache_key = "einstein"
-        if cache_key in self._cache:
+        use_cache = self._cacheable(metric)
+        if use_cache and cache_key in self._cache:
             return self._cache[cache_key]
             
         if metric is None:
@@ -562,7 +644,8 @@ class GeometryEngine(nn.Module):
             einstein = einstein + higher_curvature
         
         # Cache the result
-        self._cache[cache_key] = einstein
+        if use_cache:
+            self._cache[cache_key] = einstein
         return einstein
     
     # ------------------------------------------------------------------

@@ -54,6 +54,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.quantum_engine import QuantumEngine, QuantumConfig
 from core.geometry_engine import GeometryEngine
 from core.entropy_module import EntropyModule
+from core.validation import (GateConfig, ValidationError, ValidationReport,
+                             check_entropy_field_sanity,
+                             check_entropy_provenance,
+                             check_meaningful_dimension)
 from core.coupling_layer import CouplingLayer, StressTensorFormulation
 
 
@@ -187,7 +191,10 @@ def run_schwarzschild_test(cfg: dict) -> dict:
     # ------------------------------------------------------------------
     # S(r) = entanglement entropy of the qubits at positions <= r, from a
     # partial trace of the actual GHZ state at each lattice point.
-    S_field = entropy_module.entropy_profile(
+    # entropy_field() (not entropy_profile()) so the result carries the
+    # provenance the pipeline gates check: every value came from a partial
+    # trace of `ghz`, so the spatial structure is emergent, not inserted.
+    S_field = entropy_module.entropy_field(
         ghz, qubit_positions, r_grid, interpolation=cfg["interpolation"]
     ).detach()
 
@@ -219,6 +226,26 @@ def run_schwarzschild_test(cfg: dict) -> dict:
     dim = geometry.dimensions
     N   = cfg["lattice_size"]
 
+    # ------------------------------------------------------------------
+    #  Pre-flight gates.  These raise rather than warn.  Note what they can
+    #  and cannot establish: the initial metric is Minkowski, i.e. exactly
+    #  flat, so the *curvature* gates here are near-trivial by construction
+    #  (zero truncation, zero identity violation).  The gate that does real
+    #  work at this point is entropy provenance.  The curvature gates only
+    #  become meaningful when re-run on the OPTIMISED metric, which happens
+    #  during and after the loop below.  (Dimension is not gated — the
+    #  framework is 1+1D, where G_munu vanishes identically; that limitation
+    #  is reported rather than fatal.)
+    # ------------------------------------------------------------------
+    gates = GateConfig(require_meaningful_dimension=False)
+    preflight = ValidationReport()
+    check_entropy_provenance(S_field, gates, preflight)
+    check_entropy_field_sanity(S_field, gates, preflight)
+    check_meaningful_dimension(geometry.dimensions, gates, preflight)
+    geometry.validate_curvature(gates=gates, report=preflight)
+    print(preflight.summary())
+    print()
+
     loss_history = []
     trace_history = []
     gtt_snapshots = {}
@@ -240,7 +267,7 @@ def run_schwarzschild_test(cfg: dict) -> dict:
         # real spatial Hessian ∂²S/∂r², not an outer-product surrogate.
         g = geometry.metric_field
         T_all = coupling.compute_stress_tensor_field(
-            S_field, metric_field=g, formulation=cfg["stress_form"]
+            S_field, metric_field=g, formulation=cfg["stress_form"], gates=gates
         )
 
         # --- Residual loss ---
@@ -265,6 +292,16 @@ def run_schwarzschild_test(cfg: dict) -> dict:
         # Enforce metric symmetry after each step
         geometry._enforce_symmetry()
 
+        # --- Gate the OPTIMISED metric, periodically ---
+        # This is the check that can actually fail: the optimiser is free to
+        # drive the metric somewhere with no continuum limit, at which point
+        # its curvature is not approximating anything and the run's numbers
+        # are meaningless. Validating only the flat starting metric would be
+        # decorative.
+        if (iteration + 1) % cfg.get("validate_every", 100) == 0:
+            geometry._clear_cache()
+            geometry.validate_curvature(gates=gates)
+
         loss_val = total_loss.item()
         trace_val = float(avg_trace.item())
         loss_history.append(loss_val)
@@ -284,6 +321,27 @@ def run_schwarzschild_test(cfg: dict) -> dict:
     # 6.  Extract final metric profile and compare to Schwarzschild
     # ------------------------------------------------------------------
     geometry.metric_field.requires_grad_(False)
+
+    # ------------------------------------------------------------------
+    #  Post-flight gates on the FINAL metric — the one whose numbers get
+    #  reported. Unlike the pre-flight pass on flat Minkowski, this can
+    #  genuinely fail, and if it does the results below are not meaningful.
+    # ------------------------------------------------------------------
+    geometry._clear_cache()
+    postflight = ValidationReport()
+    try:
+        geometry.validate_curvature(gates=gates, report=postflight)
+        print("\nPost-optimization validation:")
+        print(postflight.summary())
+    except ValidationError as exc:
+        print("\n*** POST-OPTIMIZATION VALIDATION FAILED ***")
+        print(postflight.summary())
+        print(f"\n{exc}\n")
+        print("The optimized metric does not satisfy the pipeline gates, so the "
+              "recovered profile below is NOT a meaningful result. Reported "
+              "anyway, clearly marked, rather than silently discarded.")
+    print()
+
     g_tt_final = geometry.metric_field[:, 0, 0].cpu().numpy()
     g_rr_final = geometry.metric_field[:, 1, 1].cpu().numpy()
     r_np = r_grid.cpu().numpy()
@@ -341,6 +399,7 @@ def run_schwarzschild_test(cfg: dict) -> dict:
 
     results = {
         "r_grid": r_np,
+        "validation": postflight.to_dict(),
         "g_tt_final": g_tt_final,
         "g_rr_final": g_rr_final,
         "g_tt_schwarzschild": g_tt_schw,

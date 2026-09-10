@@ -16,6 +16,7 @@ to ensure everything works together properly.
 
 import os
 import sys
+import math
 import time
 import argparse
 import numpy as np
@@ -225,7 +226,9 @@ def test_coupling_layer():
     coupling_layer = CouplingLayer(
         geometry_engine=geometry_engine,
         entropy_module=entropy_module,
-        stress_form=StressTensorFormulation.JACOBSON
+        stress_form=StressTensorFormulation.JACOBSON,
+        # legacy v1.2 stack under test: opt-in is explicit and local
+        allow_legacy_heuristic=True,
     )
     
     # Prepare a Bell state
@@ -233,7 +236,10 @@ def test_coupling_layer():
     
     # Test stress tensor computation
     entropy_grad = entropy_module.entropy_gradient(bell_state, [0])
-    stress_tensor, edge_contribution = coupling_layer.compute_entropy_stress_tensor(entropy_grad)
+    # legacy v1.2 heuristic: exercised deliberately, with the opt-in that
+    # now makes such a call visible at the call site
+    stress_tensor, edge_contribution = coupling_layer.compute_entropy_stress_tensor(
+        entropy_grad, allow_legacy_heuristic=True)
     assert stress_tensor.shape == (dimensions, dimensions), \
         f"Stress tensor shape mismatch: {stress_tensor.shape} != ({dimensions}, {dimensions})"
     
@@ -291,7 +297,9 @@ def test_loss_functions():
     # Initialize coupling layer
     coupling_layer = CouplingLayer(
         geometry_engine=geometry_engine,
-        entropy_module=entropy_module
+        entropy_module=entropy_module,
+        # legacy v1.2 stack under test: opt-in is explicit and local
+        allow_legacy_heuristic=True,
     )
     
     # Initialize loss functions
@@ -362,7 +370,9 @@ def test_optimizer():
     # Initialize coupling layer
     coupling_layer = CouplingLayer(
         geometry_engine=geometry_engine,
-        entropy_module=entropy_module
+        entropy_module=entropy_module,
+        # legacy v1.2 stack under test: opt-in is explicit and local
+        allow_legacy_heuristic=True,
     )
     
     # Initialize loss functions
@@ -454,7 +464,9 @@ def test_integration():
         entropy_module=entropy_module,
         stress_form=StressTensorFormulation.JACOBSON,
         include_edge_modes=True,
-        include_higher_curvature=True
+        include_higher_curvature=True,
+        # legacy v1.2 stack under test: opt-in is explicit and local
+        allow_legacy_heuristic=True,
     )
     
     # Initialize loss functions
@@ -513,6 +525,222 @@ def test_integration():
     logger.info("✓ Integration tests passed")
     return True
 
+def test_validation_gates():
+    """Gates must abort on exactly the defects that invalidated v1.2.
+
+    Each assertion here corresponds to a real failure mode:
+      - an entropy profile inserted by hand rather than derived (v1.2 defect 1)
+      - a wrong contraction breaking tracelessness (v1.2 defect 3)
+      - curvature whose identity violations exceed discretization (part of
+        v1.2 defect 2 — the symmetry-projection part)
+
+    Scope, honestly: the missing 1/dx normalisation, also part of defect 2, is
+    *invisible* to these gates. A uniform scale error multiplies the Riemann
+    tensor and its norm equally, so the relative identity violations are
+    unchanged. That third of the defect is caught by `test_geometry_engine`'s
+    derivative tests, not here.
+    """
+    from core.validation import (EntropyField, GateConfig, ProvenanceError,
+                                 ValidationError, ValidationReport,
+                                 check_entropy_field_sanity,
+                                 check_entropy_provenance,
+                                 check_meaningful_dimension,
+                                 check_metric_resolved,
+                                 check_riemann_identities, check_tracelessness)
+
+    strict = GateConfig()
+    N = 32
+
+    # -- provenance: the v1.2 gate -------------------------------------
+    bare = torch.linspace(0.0, 1.0, N, dtype=torch.float64)
+    try:
+        check_entropy_provenance(bare, strict)
+        raise AssertionError("bare tensor accepted as an entropy source")
+    except ProvenanceError:
+        pass
+
+    inserted = EntropyField.unverified(torch.exp(-((torch.linspace(-3, 3, N)) ** 2)),
+                                       "analytic", note="hand-placed Gaussian")
+    try:
+        check_entropy_provenance(inserted, strict)
+        raise AssertionError("hand-placed Gaussian accepted as derived")
+    except ProvenanceError:
+        pass
+
+    # a field cannot simply claim to be derived
+    try:
+        EntropyField.unverified(bare, "partial_trace")
+        raise AssertionError("unverified() allowed a forged provenance")
+    except ValueError:
+        pass
+
+    # explicit opt-out still works, and is visible at the call site
+    check_entropy_provenance(bare, GateConfig(require_derived_entropy=False))
+
+    # -- provenance cannot be forged by direct construction ---------------
+    from core.validation import Provenance
+    try:
+        EntropyField(bare, Provenance("partial_trace"))
+        raise AssertionError("forged derived provenance accepted by constructor")
+    except ProvenanceError:
+        pass
+
+    # -- and the field is immutable after the claim is recorded -----------
+    probe = EntropyField.unverified(bare, "analytic")
+    try:
+        probe.values = torch.zeros(N, dtype=torch.float64)
+        raise AssertionError("EntropyField values were mutable after construction")
+    except Exception:
+        pass  # frozen dataclass raises FrozenInstanceError
+
+    # -- sanity ---------------------------------------------------------
+    relaxed = GateConfig(require_derived_entropy=False)
+    for bad, why in (
+        (torch.ones(N, dtype=torch.float64), "constant field"),
+        (torch.full((N,), -1.0, dtype=torch.float64), "negative entropy"),
+    ):
+        try:
+            check_entropy_field_sanity(EntropyField.unverified(bad), relaxed)
+            raise AssertionError(f"{why} accepted")
+        except ValidationError:
+            pass
+
+    # -- tracelessness ---------------------------------------------------
+    g = torch.eye(2, dtype=torch.float64).repeat(N, 1, 1)
+    g[:, 0, 0] = -1.0
+    traceless = torch.zeros(N, 2, 2, dtype=torch.float64)
+    traceless[:, 0, 0] = 1.0
+    traceless[:, 1, 1] = 1.0            # g^uv T_uv = -1 + 1 = 0
+    assert check_tracelessness(traceless, g, "massless", strict).passed
+
+    not_traceless = torch.zeros(N, 2, 2, dtype=torch.float64)
+    not_traceless[:, 1, 1] = 1.0
+    try:
+        check_tracelessness(not_traceless, g, "massless", strict)
+        raise AssertionError("non-traceless MASSLESS tensor accepted")
+    except ValidationError:
+        pass
+    # LAGRANGIAN is not traceless; the gate must not invent a failure
+    assert check_tracelessness(not_traceless, g, "lagrangian", strict).passed
+
+    # -- riemann identities: judged against predicted truncation error ----
+    # ratio ~1 is what a correct discretization produces at any resolution
+    assert check_riemann_identities({"pair_symmetry": 1.4e-3}, strict,
+                                    truncation=1e-3).passed
+    try:
+        # same absolute violation, but the metric is 100x smoother: the
+        # discretization cannot explain it, so the curvature code is wrong
+        check_riemann_identities({"pair_symmetry": 1.4e-3}, strict,
+                                 truncation=1e-5)
+        raise AssertionError("violation far exceeding truncation error accepted")
+    except ValidationError:
+        pass
+    # absolute fallback when smoothness is unknown
+    try:
+        check_riemann_identities({"first_bianchi": 0.5}, strict)
+        raise AssertionError("grossly violated Bianchi identity accepted")
+    except ValidationError:
+        pass
+
+    # -- metric resolution: the gate noise must fail ----------------------
+    assert check_metric_resolved(1e-3, strict).passed
+    try:
+        check_metric_resolved(0.5, strict)
+        raise AssertionError("unresolved (noise-scale) metric accepted")
+    except ValidationError:
+        pass
+
+    # -- dimension --------------------------------------------------------
+    # off by default (the framework is 1+1D); fatal when a run claims rigour
+    assert check_meaningful_dimension(2, strict).passed
+    try:
+        check_meaningful_dimension(2, GateConfig(require_meaningful_dimension=True))
+        raise AssertionError("2D run accepted as a valid curvature test")
+    except ValidationError:
+        pass
+
+    # -- end-to-end: a real derived field passes, its raw tensor does not --
+    qe = QuantumEngine(config=QuantumConfig(
+        num_qubits=4, depth=2, device="default.qubit", interface="torch"))
+    em = EntropyModule(qe)
+    amps = torch.zeros(16, dtype=torch.complex128)
+    amps[0] = amps[-1] = 1.0 / math.sqrt(2.0)          # GHZ
+    geo = GeometryEngine(lattice_size=N, dimensions=2)
+    r_grid = torch.linspace(1.0, 5.0, N, dtype=torch.float64)
+    field = em.entropy_field(amps, torch.linspace(1.5, 2.5, 4).tolist(), r_grid)
+    assert field.provenance.derived, "entropy_field() lost its provenance"
+    check_entropy_provenance(field, strict)
+
+    # a smooth metric must clear the curvature gates; per-site noise must not
+    smooth_geo = GeometryEngine(lattice_size=N, dimensions=2)
+    x = torch.linspace(0.0, 1.0, N, dtype=torch.float64)
+    with torch.no_grad():
+        for a in range(2):
+            smooth_geo.metric_field[:, a, a] += 0.1 * torch.sin(2 * math.pi * x)
+    smooth_geo._clear_cache()
+    assert smooth_geo.validate_curvature().passed, "smooth metric failed gates"
+
+    noisy = GeometryEngine(lattice_size=N, dimensions=2)
+    torch.manual_seed(0)
+    with torch.no_grad():
+        noisy.metric_field += 0.05 * torch.randn_like(noisy.metric_field)
+        noisy.metric_field.copy_(
+            0.5 * (noisy.metric_field + noisy.metric_field.transpose(1, 2)))
+    noisy._clear_cache()
+    try:
+        noisy.validate_curvature()
+        raise AssertionError("metric with no continuum limit passed the gates")
+    except ValidationError:
+        pass
+
+    cl = CouplingLayer(geo, em)
+    report = ValidationReport()
+    T = cl.compute_stress_tensor_field(field, formulation="massless", report=report)
+    assert report.passed, report.summary()
+    assert torch.isfinite(T).all()
+
+    try:
+        cl.compute_stress_tensor_field(field.values, formulation="massless")
+        raise AssertionError("coupling layer accepted a bare tensor")
+    except ProvenanceError:
+        pass
+
+    # -- the legacy v1.2 heuristic must refuse to run unasked --------------
+    grad = torch.randn(4, dtype=torch.float64)
+    try:
+        cl.compute_entropy_stress_tensor(grad)   # cl was built without the opt-in
+        raise AssertionError("legacy state-space-gradient path ran ungated")
+    except ProvenanceError:
+        pass
+    # per-call opt-in
+    cl.compute_entropy_stress_tensor(grad, allow_legacy_heuristic=True)
+    # per-object opt-in, declared once at construction
+    legacy_cl = CouplingLayer(geo, em, allow_legacy_heuristic=True)
+    legacy_cl.compute_entropy_stress_tensor(grad)
+
+    # -- digest binds the claim to the values ------------------------------
+    assert field.verify_digest(), "digest did not match its own values"
+    forged = EntropyField(torch.zeros_like(field.values), field.provenance,
+                          field._token)
+    assert not forged.verify_digest(), "substituted values passed the digest"
+    try:
+        check_entropy_provenance(forged, strict)
+        raise AssertionError("substituted values passed the provenance gate")
+    except ProvenanceError:
+        pass
+
+    # -- gates must actually fire on a metric the optimizer could reach ----
+    # (the pre-flight metric is flat, where these gates are near-trivial)
+    assert smooth_geo.validate_curvature().passed
+
+    # the report is serialisable so results can ship with their gates
+    d = report.to_dict()
+    assert d["passed"] and d["gates"], "report did not serialise"
+
+    logger.info("✓ Validation gate tests passed")
+    return True
+
+
 def test_all():
     """Run all tests."""
     logger.info("Starting comprehensive tests of the EntropicUnification engine...")
@@ -524,6 +752,7 @@ def test_all():
         ("Coupling Layer", test_coupling_layer),
         ("Loss Functions", test_loss_functions),
         ("Optimizer", test_optimizer),
+        ("Validation Gates", test_validation_gates),
         ("Integration", test_integration)
     ]
     

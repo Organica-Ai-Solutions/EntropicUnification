@@ -30,3 +30,6 @@ paper/*.synctex.gz
 
 # Experiment outputs (large, reproducible)
 schwarzschild_results/
+
+# runtime logs are not evidence — run scripts/calibrate_gates.py and test_engine.py
+test_engine.log

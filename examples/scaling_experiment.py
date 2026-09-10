@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.quantum_engine import QuantumEngine, QuantumConfig
 from core.geometry_engine import GeometryEngine
 from core.entropy_module import EntropyModule
+from core.validation import GateConfig, ValidationError
 from core.coupling_layer import CouplingLayer, StressTensorFormulation
 from examples.schwarzschild_test import fit_schwarzschild_radius
 
@@ -124,9 +125,16 @@ def run_one(theta: float, cfg: dict) -> dict:
     qubit_positions = np.linspace(
         cfg["r_min"], cfg["r_min"] + cfg["cluster_width"], num_qubits
     ).tolist()
-    S_field = entropy_module.entropy_profile(
+    S_field = entropy_module.entropy_field(
         psi, qubit_positions, r_grid, interpolation="linear"
     ).detach()
+
+    # Strict gates: the source must be state-derived and the stress tensor
+    # traceless and finite, or the run aborts rather than reporting a number.
+    gates = GateConfig(require_meaningful_dimension=False)
+    # NOTE: the initial metric is flat, so this pre-flight pass is near-trivial
+    # for the curvature gates. The meaningful check is the post-loop one below.
+    geometry.validate_curvature(gates=gates)
 
     optimizer = torch.optim.Adam([geometry.metric_field], lr=cfg["learning_rate"])
 
@@ -135,7 +143,7 @@ def run_one(theta: float, cfg: dict) -> dict:
         geometry._clear_cache()
 
         G_all = geometry.compute_einstein_tensor()
-        T_all = coupling.compute_stress_tensor_field(S_field)
+        T_all = coupling.compute_stress_tensor_field(S_field, gates=gates)
         residual  = G_all - T_all
         total_loss = torch.sum(residual ** 2)
 
@@ -148,10 +156,20 @@ def run_one(theta: float, cfg: dict) -> dict:
     r_np       = r_grid.cpu().numpy()
     r_s_fit    = fit_schwarzschild_radius(r_np, g_tt_final)
 
+    # Gate the OPTIMISED metric — the one the reported r_s is extracted from.
+    geometry._clear_cache()
+    try:
+        geometry.validate_curvature(gates=gates)
+        validated = True
+    except ValidationError as exc:
+        validated = False
+        print(f"  [validation FAILED at this entanglement level] {exc}")
+
     # Explicit CUDA memory cleanup — prevents OOM on successive runs
     del geometry, qe, entropy_module, coupling, optimizer, r_grid, S_field, psi
 
-    return {"theta": theta, "S_ent": S_ent, "r_s": r_s_fit}
+    return {"theta": theta, "S_ent": S_ent, "r_s": r_s_fit,
+            "validated": validated}
 
 
 # ---------------------------------------------------------------------------

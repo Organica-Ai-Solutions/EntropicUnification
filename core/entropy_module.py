@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from .quantum_engine import QuantumEngine
+from .validation import EntropyField
 
 
 class EntropyModule:
@@ -299,6 +300,40 @@ class EntropyModule:
 
         return profile.to(dtype=r_grid.dtype if r_grid.is_floating_point() else torch.float64,
                           device=r_grid.device)
+
+    def entropy_field(
+        self,
+        state: torch.Tensor,
+        qubit_positions: Sequence[float],
+        r_grid: torch.Tensor,
+        interpolation: str = "linear",
+    ) -> EntropyField:
+        """`entropy_profile` plus the provenance the pipeline gates require.
+
+        Prefer this over `entropy_profile` for anything whose numbers will be
+        reported.  The returned field records that every value came from a
+        partial trace of `state`, which is what `check_entropy_provenance`
+        verifies before the coupling layer will use it as a source.
+        """
+        values = self.entropy_profile(
+            state, qubit_positions, r_grid, interpolation=interpolation
+        )
+        import hashlib
+
+        with torch.no_grad():
+            flat = state.reshape(-1)
+            norm = float(torch.linalg.norm(flat))
+            state_digest = hashlib.sha256(
+                flat.detach().cpu().numpy().tobytes()
+            ).hexdigest()[:16]
+        return EntropyField.from_partial_traces(
+            values,
+            num_qubits=self.quantum_engine.num_qubits,
+            qubit_positions=qubit_positions,
+            interpolation=interpolation,
+            state_norm=norm,
+            state_digest=state_digest,
+        )
 
     def entropy_flow(
         self, 

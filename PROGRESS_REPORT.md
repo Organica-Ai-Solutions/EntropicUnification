@@ -1,101 +1,150 @@
-# EntropicUnification Progress Report
+# EntropicUnification — Progress Report
 
-## Overview
+**Status as of v1.4 (September 2026).** This document was rewritten from
+scratch at v1.4: every prior version described the v1.1/v1.2 codebase and
+listed as achievements several things v1.3 deliberately *removed*. If you are
+looking for the old text, it is in git history — treat it as a record of what
+we believed, not of what the code does.
 
-This report summarizes the current state of the EntropicUnification framework, the improvements made, and the next steps for further development. The framework is an exploratory computational platform that investigates potential connections between quantum entanglement entropy and spacetime geometry through differentiable programming.
+## What the framework is
 
-## Current Status
+A differentiable toy model asking whether spacetime geometry can emerge from
+entanglement entropy. The pipeline:
 
-We have successfully implemented several key improvements to the framework:
+```
+quantum state  ->  S(r) by partial trace  ->  ∇S  ->  T_μν  ->  metric fit vs G_μν
+```
 
-1. **Enhanced Geometric Calculations**
-   - Implemented higher-order finite difference methods (2nd, 4th, 6th order)
-   - Added spectral methods for derivatives with periodic boundary conditions
-   - Implemented proper tensor symmetry enforcement for Riemann and Weyl tensors
-   - Added Bianchi identity enforcement for physical consistency
+It is a numerical sandbox on a 1-D lattice, not a theory and not evidence for
+one.
 
-2. **Advanced Optimization Techniques**
-   - Implemented multiple optimization strategies (SGD, momentum, Adam)
-   - Added learning rate scheduling (constant, step, exponential, cosine)
-   - Introduced adaptive weighting for loss components
-   - Implemented basin hopping and simulated annealing for better exploration of the loss landscape
+## The v1.2 retraction (the central fact about this project)
 
-3. **Physical Validation Metrics**
-   - Added energy condition checks
-   - Implemented covariance verification
-   - Added area law validation for entanglement entropy
+All quantitative results from v1.2 and earlier are **withdrawn**. Three
+independent defects:
 
-4. **Improved Visualization**
-   - Enhanced plots with better labels and explanations
-   - Added comparative analysis tools
-   - Created summary visualizations for simulation results
+1. **The entropy field's spatial structure was inserted by hand.** The
+   "entropy gradient" was a gradient with respect to quantum state
+   *amplitudes*, relabelled as spacetime components and multiplied by a
+   hand-placed Gaussian `w(r)`. The recovered `g_tt` well restated that
+   Gaussian. Every downstream number — the Schwarzschild fits, the `r_s/S`
+   ratios, the scaling curves — inherited the circularity.
+2. **Curvature was not GR curvature.** Christoffel symbols copied one lattice
+   derivative into every coordinate slot; finite differences omitted the
+   `1/dx` normalisation; Riemann symmetries were *projected onto the
+   mixed-index tensor*, where they do not hold.
+3. **Contractions used the Euclidean dot product** rather than
+   `g^μν ∂_μS ∂_νS`, breaking the trace identities MASSLESS depends on.
 
-5. **Documentation**
-   - Updated README.md with exploratory framework framing
-   - Created ENHANCEMENTS.md detailing all improvements
-   - Added IMPROVEMENTS.md with technical details
-   - Created example scripts with documentation
+The most instructive part: **none of the diagnostics caught any of it.**
+Defect 2 made the identity checks read *better*, because the symmetries were
+being imposed rather than measured.
 
-## Demonstration Results
+## What v1.3 fixed (July 2026)
 
-We have created several demonstration scripts that showcase the key concepts and improvements:
+- `S(r)` computed from partial traces of the actual state at every cut radius
+  (`EntropyModule.entropy_profile`). For a pure state `S(r)` vanishes below the
+  innermost and above the outermost qubit, so any bump is emergent.
+- `CouplingLayer.compute_stress_tensor_field` builds `T_μν` from the genuine
+  spatial derivative of `S(r)` with `g^μν` contractions. MASSLESS is traceless
+  to machine precision; FAULKNER uses the real spatial Hessian.
+- Christoffel/Riemann/Ricci implement the declared static single-coordinate
+  ansatz. Finite differences are `dx`-normalised throughout.
+- Symmetry projection and Bianchi "enforcement" **removed**; replaced by
+  `riemann_identity_violations()`, which measures and reports.
+- Weyl/Gauss-Bonnet computed on the properly lowered Riemann tensor.
 
-1. **Simple Simulation**: A basic demonstration of the EntropicUnification framework that shows the optimization of spacetime geometry to match a target entanglement entropy.
+## What v1.4 adds (September 2026): gates, not warnings
 
-2. **Enhanced Concepts**: A demonstration of the key technical improvements:
-   - Finite difference accuracy comparison
-   - Bianchi identity enforcement
-   - Optimization strategy comparison
+v1.3 fixed the physics but left every consistency check *advisory* — a number
+printed for a human to notice. That is the same failure mode that let v1.2
+ship. v1.4 introduces `core/validation.py`, which turns them into gates that
+**abort the run**:
 
-3. **Test Scripts**: Validation scripts for individual components:
-   - Finite difference methods
-   - Enhanced geometry engine
-   - Advanced optimization techniques
+| gate | catches |
+|---|---|
+| `check_entropy_provenance` | an entropy field whose structure was inserted rather than derived — **the v1.2 defect, at its source** |
+| `check_entropy_field_sanity` | constant or negative `S(x)`: no source, nothing to test |
+| `check_tracelessness` | a wrong contraction, relative to `‖T‖`, for the formulations that are traceless by construction |
+| `check_riemann_identities` | curvature violating the identities by more than discretization explains |
+| `check_metric_resolved` | a metric varying on the scale of the lattice — no continuum limit |
+| `check_finite` | NaN/Inf reaching the loss — a diverged run that would still print plots |
+| `check_meaningful_dimension` | a run claiming a curvature result in 2D, where `G_μν ≡ 0` identically |
 
-## Current Challenges
+Provenance is carried by the data: `EntropyModule.entropy_field()` returns an
+`EntropyField` recording that every value came from a partial trace of a named
+state. `CouplingLayer` **refuses a bare tensor** — not because a tensor is
+necessarily wrong, but because nothing about it records whether its spatial
+structure was computed or hand-placed, and that distinction is the whole
+lesson of v1.2.
 
-While we've made significant progress, some challenges remain:
+Any gate can be relaxed (`GateConfig(strict=False)`, or a named `allow_*`
+flag). Relaxing one is a deliberate, visible act. That is the design.
 
-1. **Tensor Dimension Issues**: The enhanced geometry engine still has some tensor dimension mismatches in the finite difference calculations that need to be resolved.
+## Independent review of v1.4
 
-2. **Scaling to Larger Systems**: The current implementation works well for small quantum systems (2-4 qubits), but scaling to larger systems requires more efficient algorithms and possibly GPU acceleration.
+The gating layer was reviewed by a separate agent with no stake in it, and the
+first pass found the gates were wired at the wrong point: both experiments
+validated only the **initial** metric, which is Minkowski — exactly flat, so
+truncation is zero, identity violations are zero, and the curvature gates
+could not fail. Good machinery aimed at the one input incapable of tripping
+it. Also found: the geometry caches were keyed by name only, so passing a
+metric argument with a warm cache mixed tensors from two different metrics;
+`EntropyField` was forgeable in one line and mutable after construction; and
+the legacy v1.2 state-space-gradient path was still fully reachable and
+completely ungated.
 
-3. **Theoretical Validation**: As an exploratory framework, we need more rigorous validation against known analytical solutions from AdS/CFT correspondence.
+All of those are fixed. The review's remaining findings are recorded as known
+limitations rather than quietly dropped:
 
-## Next Steps
+| limitation | status |
+|---|---|
+| missing `1/dx` is invisible to the gates (relative violations are scale-invariant) | documented; covered by the derivative tests instead |
+| `check_metric_resolved` passes noise below ~0.8% of \|g\| | documented; `converges_under_refinement()` added as the real test, not wired in by default (needs two resolutions) |
+| provenance is attestation + tamper-evidence, not proof | documented |
+| FAULKNER uses the coordinate Hessian, not the covariant one | **open issue** — the docstring says `grad_mu grad_nu S`; the code omits the Christoffel term |
 
-The following tasks are prioritized for the next development phase:
+## Honest results
 
-1. **Fix Tensor Dimension Issues**: Resolve the remaining tensor dimension mismatches in the finite difference calculations.
+**Schwarzschild test** (1000 iterations, lattice 64, MASSLESS): 2/3 qualitative
+checks. `g_tt` has the right sign structure and rough asymptotic flatness;
+`g_rr` moves the wrong way. Pearson `r(g_tt) = 0.50`, `r(g_rr) = 0.02`. The
+v1.2 claim of 0.78 does not survive. Tracelessness violation ~1e-17.
 
-2. **Scale to Larger Quantum Systems**: Implement more efficient algorithms for handling larger quantum systems (8+ qubits).
+**Entanglement scaling** (1000 iterations, lattice 32): no clean `r_s ∝ S`
+relation; a through-origin linear fit gives negative R². Short runs look
+linear but the relationship does not survive convergence.
 
-3. **Create Benchmark Suite**: Develop a suite of benchmark tests with analytical AdS/CFT solutions for validation.
+**H1, H2, H3: all open.** Prior confirmations used the invalidated pipeline.
 
-4. **Implement Edge Mode Corrections**: Enhance the entropy calculations with proper edge mode contributions.
+## The limitation that dominates everything else
 
-5. **Add Non-Conformal Matter Support**: Extend the framework to handle non-conformal matter fields.
+The framework runs in **1+1D, where the continuum Einstein tensor vanishes
+identically** — `G_μν ≡ 0` for every metric in two dimensions. The optimiser is
+fitting a target that is structurally zero. No amount of numerical care fixes
+this; H3 is not merely unconfirmed here, it is **untestable** here.
 
-6. **Improve UV Regularization**: Implement more sophisticated UV regularization techniques for entanglement entropy.
+`check_meaningful_dimension` exists to make this impossible to forget, and is
+off by default only because turning it on would (correctly) fail every run the
+framework can currently perform.
 
-## Conclusion
+## Next steps, in order of honesty-weighted value
 
-The EntropicUnification framework has evolved into a more robust exploratory platform for investigating the connections between quantum entanglement and spacetime geometry. The improvements made have enhanced its computational capabilities and physical consistency, while maintaining its exploratory nature.
+0. **Fix the FAULKNER Hessian** to the covariant form, or change the
+   documentation to say it is the coordinate second derivative. The two
+   currently disagree.
+1. **≥3+1D.** Everything else is secondary. Until then no result here bears on
+   the conjecture.
+2. **Make dimension an output, not an input.** A framework claiming geometry
+   emerges from entanglement currently *assumes* the lattice, the coordinate
+   and the dimension. A tensor-network formulation, where geometry is read off
+   network connectivity, would not.
+3. **A benchmark with a known answer.** "Recover Schwarzschild" is loosely
+   posed, which is how v1.2 slid into circularity. The fluid/gravity
+   correspondence supplies cases where the dual metric is derivable
+   independently — a target that can actually be missed.
+4. Many-qubit chains (8–12) for smoother `S(r)`.
+5. GPU/sparse partial traces; the O(2ⁿ) trace is the scaling wall.
 
-The framework now provides a more solid foundation for testing hypotheses about entropic gravity and holographic entanglement, with appropriate caveats about its speculative status. Future development will focus on scaling to larger systems, more rigorous validation, and addressing the theoretical subtleties identified in the research literature.
-
-## Appendix: Key Visualizations
-
-The following visualizations showcase the framework's capabilities:
-
-1. **Finite Difference Accuracy**: Comparison of different finite difference methods (2nd order, 4th order, spectral).
-   - Location: `results/enhanced_concepts/finite_difference_comparison.png`
-
-2. **Bianchi Identity Enforcement**: Demonstration of enforcing the Bianchi identity on the Riemann tensor.
-   - Location: `results/enhanced_concepts/bianchi_identity.png`
-
-3. **Optimization Strategy Comparison**: Comparison of different optimization strategies (SGD, momentum, Adam).
-   - Location: `results/enhanced_concepts/optimization_comparison.png`
-
-4. **Simple Simulation Results**: Results from the simple simulation demonstration.
-   - Location: `results/simple_simulation/summary.png`
+Real quantum hardware and cosmological simulations remain on the roadmap and
+remain, at this stage, premature.

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.3-blue" />
+  <img src="https://img.shields.io/badge/version-1.4-blue" />
   <img src="https://img.shields.io/badge/python-3.9%2B-green" />
   <img src="https://img.shields.io/badge/framework-PyTorch%20%7C%20PennyLane-orange" />
   <img src="https://img.shields.io/badge/status-active%20research-purple" />
@@ -68,6 +68,63 @@ In short: **the current honest 1+1D toy shows a weak, partial signature at best.
 
 ---
 
+## Validation Gates (v1.4)
+
+v1.3 fixed the physics but left every consistency check *advisory* — a number
+printed for a human to notice. That is the same failure mode that let v1.2
+ship: not one of its three invalidating defects triggered an error, and one of
+them made its own diagnostic read *better*, because the Riemann symmetries were
+being projected in rather than measured.
+
+v1.4 adds `core/validation.py`, which turns those checks into gates that abort
+the run:
+
+| gate | catches |
+|---|---|
+| `check_entropy_provenance` | an entropy field whose spatial structure was inserted rather than derived — **the v1.2 defect, at its source** |
+| `check_entropy_field_sanity` | constant or negative $S(x)$: no source, nothing to test |
+| `check_tracelessness` | a wrong contraction, relative to $\|T\|$, for the formulations that are traceless by construction |
+| `check_riemann_identities` | curvature violating the identities by more than discretization explains |
+| `check_metric_resolved` | a metric varying on the scale of the lattice — no continuum limit, so no curvature |
+| `check_finite` | NaN/Inf reaching the loss — a diverged run that would still print plots |
+| `check_meaningful_dimension` | a run claiming a curvature result in 2D, where $G_{\mu\nu} \equiv 0$ identically |
+
+Provenance travels with the data. `EntropyModule.entropy_field()` returns an
+`EntropyField` recording that every value came from a partial trace of a named
+state, and the coupling layer **refuses a bare tensor**:
+
+```python
+S = entropy_module.entropy_field(ghz, qubit_positions, r_grid)
+coupling.compute_stress_tensor_field(S)          # fine
+coupling.compute_stress_tensor_field(S.values)   # ProvenanceError
+```
+
+A raw tensor is not rejected because tensors are wrong, but because nothing
+about one records whether its structure was *computed* or *hand-placed* — and
+that distinction is the entire difference between v1.2 and v1.3.
+
+Every gate can be relaxed (`GateConfig(strict=False)`, or an individual
+`require_*` field). The goal was never to make bypassing impossible; it is to
+make bypassing explicit, local, and visible in the diff instead of being the
+default state of the code.
+
+**What these gates do not cover**, stated so nobody over-trusts them:
+
+- The missing-`1/dx` third of the v1.2 curvature defect is invisible to them —
+  a uniform scale error cancels in the *relative* identity violations.
+- `check_metric_resolved` is a single-resolution screen. Per-site noise below
+  ~0.8% of $\|g\|$ passes it; the real discriminator is that the truncation
+  parameter fails to fall under refinement
+  (`converges_under_refinement`).
+- Provenance is an attestation plus a tamper-evidence digest, not a proof.
+- FAULKNER's Hessian is the coordinate second derivative, not the covariant
+  one; the trace gate confirms internal consistency of the implemented
+  formula, not that the formula matches its docstring.
+
+Full rationale and tolerance calibration: [docs/VALIDATION.md](docs/VALIDATION.md).
+
+---
+
 ## Theoretical Foundation
 
 ### The Stress Tensor Ansatz
@@ -100,7 +157,16 @@ A tracelessness diagnostic runs automatically every simulation. Zero = massless 
 |---|---|---|---|
 | `LAGRANGIAN` | Hilbert variation of covariant action | No (massive analog) | Baseline derivation |
 | `MASSLESS` | Lagrangian + E=pc constraint ($1/n$) | Yes | Default — physically motivated |
-| `FAULKNER` | Linearized Einstein from Hessian: $\nabla_\mu\nabla_\nu S - (\Box S)g_{\mu\nu}$ | Yes | Closest to Faulkner (2013) |
+| `FAULKNER` | Linearized Einstein from Hessian: $\nabla_\mu\nabla_\nu S - (\Box S)g_{\mu\nu}$ | No — trace is $(1-n)\Box S$ | Closest to Faulkner (2013) |
+
+> **Corrected in v1.4.** This table previously listed FAULKNER as traceless.
+> It is not: the trace of $\nabla_\mu\nabla_\nu S - (\Box S)g_{\mu\nu}$ is
+> $(1-n)\Box S$, which vanishes only in $n=1$ — the formula printed in the row
+> contradicted the claim beside it. The implementation was always correct; the
+> documentation was wrong, and the `check_trace_identity` gate caught it on its
+> first run. FAULKNER's trace is now verified against $(1-n)\Box S$ (matching to
+> machine precision in $n=2$ and $n=4$) rather than against zero.
+
 
 ---
 
@@ -264,8 +330,13 @@ The long-term vision: NIS agents grounded in physics that is itself grounded in 
 - [x] Exact tracelessness of MASSLESS form via $g^{\mu\nu}$ contraction (v1.3)
 - [x] Real spatial Hessian for FAULKNER formulation (v1.3)
 - [x] O(2ⁿ) partial trace via tensor reshape
-- [ ] Re-run H1–H3 on the v1.3 pipeline and publish results (positive or null)
+- [x] Gating validation layer — provenance, tracelessness, curvature identities (v1.4)
+- [ ] Re-run H1–H3 on the gated pipeline and publish results (positive or null)
 - [ ] Move beyond 1+1D — in 2D the continuum Einstein tensor vanishes identically, so H3 needs ≥ 3+1D to be meaningful
+- [ ] Make dimension an *output* — a tensor-network formulation reads geometry
+      off network connectivity instead of assuming a lattice and a coordinate
+- [ ] A benchmark with an independently known answer (fluid/gravity supplies one);
+      "recover Schwarzschild" is loosely posed, which is how v1.2 slid into circularity
 - [ ] Many-qubit chains (8–12) for smoother $S(r)$ profiles
 - [ ] Real quantum hardware integration (IBM Quantum / IonQ)
 - [ ] Cosmological simulations — early universe dynamics
