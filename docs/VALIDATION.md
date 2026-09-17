@@ -18,6 +18,37 @@ curvature was being corrupted.
 The lesson is not "be more careful." It is that a check nobody is forced to
 read is not a check. `core/validation.py` turns them into gates that abort.
 
+## A worked example of why the rule matters
+
+The boundary-stencil bug fixed in v1.4.4 was found by refusing to loosen a
+tolerance. The Chebyshev experiment failed `check_riemann_identities` at ratio
+5.23 against a 4.0 threshold, and the obvious diagnosis — "my tolerance was
+calibrated on single-mode sinusoids and is too tight here" — was both
+plausible and, as it turns out, partly true.
+
+Instead of acting on it, the criterion was fixed **in advance**: a truncation
+error gives a ratio that is *constant* under refinement whatever its value; a
+ratio that *grows* means a genuine defect. It grew — ~1.4x per lattice
+doubling across every mode count, while the single-sinusoid reference stayed
+pinned at 1.42.
+
+That pointed at `core/utils/finite_difference.py`, where the boundary used
+two-point one-sided differences (O(dx)) against an O(dx²) interior. The
+lower order dominated the global error norm wherever the field varied near
+the boundary, degrading the whole scheme to roughly O(dx^1.5). Chebyshev
+polynomials concentrate their variation at the endpoints, which is why they
+exposed it and a sinusoid never did.
+
+Two lessons, both uncomfortable:
+
+1. **The convenient explanation was available and wrong-ish.** Raising the
+   tolerance would have made the run pass and left a bug that had been
+   costing half an order of accuracy in every curvature number this project
+   has ever produced — including the ones already withdrawn.
+2. **The calibration set was too narrow.** One function family, chosen
+   without asking where it stresses the code. A sinusoid on [0,1] barely
+   varies at the endpoints, so a first-order edge stencil was invisible to it.
+
 ## The rule
 
 > A defect that would invalidate a published number must **raise**, not warn.
@@ -188,36 +219,50 @@ The MASSLESS trace is exactly zero in exact arithmetic; observed float64
 values sit at ~1e-17. A real failure is a bug by many orders of magnitude, so
 the threshold's precise value is not load-bearing.
 
-### `riemann_error_ratio = 4.0` — measured
+### `riemann_error_ratio = 4.0` — measured, and spectrum-dependent
 
 Ratio of the worst identity violation to the predicted truncation error
 `eps`, for a smooth metric (flat + a long-wavelength sinusoid):
 
 | case | N=16 | N=32 | N=64 | N=128 | N=256 |
 |---|---|---|---|---|---|
-| dim 2, amp 0.01 | 1.45 | 1.43 | 1.42 | 1.42 | 1.42 |
-| dim 2, amp 0.1  | 1.44 | 1.43 | 1.42 | 1.42 | 1.42 |
-| dim 4, amp 0.01 | 0.83 | 0.83 | 0.82 | 0.82 | 0.82 |
-| dim 4, amp 0.1  | 0.83 | 0.82 | 0.82 | 0.82 | 0.82 |
+| dim 2, amp 0.01 | 1.19 | 1.35 | 1.39 | 1.40 | 1.41 |
+| dim 2, amp 0.1  | 1.19 | 1.35 | 1.39 | 1.40 | 1.41 |
+| dim 4, amp 0.01 | 0.69 | 0.78 | 0.80 | 0.81 | 0.81 |
+| dim 4, amp 0.1  | 0.68 | 0.77 | 0.80 | 0.81 | 0.81 |
 
-**The ratio is constant to within a few percent across 16x in resolution, two
-dimensionalities and 10x in amplitude.** The absolute violations behind these
-numbers fall by ~4.1x per lattice doubling — clean second-order convergence,
-exactly what centred finite differences should give, with a flat metric giving
-identically zero at every resolution.
+Absolute violations fall 3.80x, 4.03x, 4.04x, 4.02x per doubling — clean
+second order, with a flat metric giving identically zero at every resolution.
+Observed range 0.68–1.41, so 4.0 leaves roughly 3x margin.
 
-This is worth stating plainly: it is independent evidence that v1.3's
-curvature rewrite is correct. The identity violations are not "small"; they
-are *precisely the size discretization predicts*, and they vanish in the
-continuum limit.
+**These numbers are post-v1.4.4.** Before the boundary-stencil fix the ratios
+read 0.82–1.45 and were flat from N=16; they now rise to the same asymptote
+from below, which is the healthier signature — coarse-lattice error dies off
+instead of being masked by a first-order edge term.
 
-Observed range 0.82–1.45, so a tolerance of 4.0 leaves roughly 3x margin
-while still failing any curvature error that is not explained by
-discretization.
+**The ratio depends on the metric's spectral content, and 4.0 does not cover
+every case.** `eps` is built from a *second* difference, while the Riemann
+identity violation also involves higher derivatives. A metric with more
+high-frequency content therefore produces a larger violation per unit of
+proxy — legitimately. Measured on Chebyshev metrics of `k` modes, after the
+boundary fix:
 
-Only `antisymmetry_first_pair` and `pair_symmetry` are ever non-zero;
-`antisymmetry_last_pair` and `first_bianchi` are satisfied to machine
-precision by construction of the discrete Riemann tensor.
+| modes | N=32 | N=64 | N=128 | N=256 | N=512 |
+|---|---|---|---|---|---|
+| 4 | 2.75 | 2.54 | 2.38 | 2.28 | 2.23 |
+| 8 | 2.91 | 3.33 | 3.31 | 3.13 | 2.95 |
+| 16 | 2.48 | 8.95 | 11.69 | 11.99 | 11.29 |
+
+k=4 and k=8 sit under 4.0; **k=16 plateaus near 11.5 and would fail the gate
+despite being perfectly well resolved.** A plateau is the signature of
+truncation error with a large coefficient, not of a defect.
+
+So for high-mode metrics the absolute threshold is the wrong instrument, and
+`converges_under_refinement` — which asks whether the ratio is *constant*
+rather than whether it is small — is the authoritative test. The default is
+deliberately **not** raised to accommodate k=16: loosening a tolerance to make
+a run pass is how v1.2's checks became decorative. Raise it consciously, per
+run, with the mode count recorded.
 
 ### `metric_resolution_tol = 2e-2` — measured, and the weakest gate here
 
@@ -225,12 +270,12 @@ Per-site Gaussian noise added to a flat metric, N=64, dim 2:
 
 | noise amp | eps | violation | ratio | verdict |
 |---|---|---|---|---|
-| 0.0001 | 2.56e-4 | 2.87e-4 | 1.12 | **passes** |
-| 0.001  | 2.56e-3 | 2.86e-3 | 1.12 | **passes** |
-| 0.01   | 2.55e-2 | 2.86e-2 | 1.12 | fails |
-| 0.05   | 1.27e-1 | 1.42e-1 | 1.11 | fails |
+| 0.0001 | 2.56e-4 | 2.59e-4 | 1.01 | **passes** |
+| 0.001  | 2.56e-3 | 2.59e-3 | 1.01 | **passes** |
+| 0.01   | 2.55e-2 | 2.59e-2 | 1.01 | fails |
+| 0.05   | 1.27e-1 | 1.30e-1 | 1.02 | fails |
 
-Note the ratio: ≈1.12 throughout. **Noise passes the Riemann gate**, because
+Note the ratio: ≈1.01 throughout. **Noise passes the Riemann gate**, because
 its identity violations really are just truncation error — of a field with no
 continuum limit. So a second gate is needed. But be clear about how much it
 buys:

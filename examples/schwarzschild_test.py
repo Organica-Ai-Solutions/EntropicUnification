@@ -77,6 +77,13 @@ DEFAULT_CFG = {
     # Optimization
     "n_iterations": 300,
     "learning_rate": 1e-3,
+    # Metric parameterisation. "pointwise" optimises every lattice value
+    # independently and has NO CONTINUUM LIMIT (see the v1.4.2 retraction);
+    # it is kept only to reproduce the withdrawn numbers. "chebyshev"
+    # optimises the coefficients of a k-mode basis and converges at second
+    # order (scripts/parameterisation_test.py).
+    "basis": "chebyshev",
+    "modes": 8,
     "grad_clip": 1.0,
     # Physics
     "stress_form": StressTensorFormulation.MASSLESS,  # Traceless, E=pc compliant
@@ -119,6 +126,20 @@ def fit_schwarzschild_radius(r: np.ndarray, g_tt: np.ndarray) -> float:
 # ---------------------------------------------------------------------------
 # Core experiment
 # ---------------------------------------------------------------------------
+
+def chebyshev_basis(n_points, n_modes, dtype, device):
+    """T_0..T_{k-1} sampled on the lattice, mapped to [-1, 1].
+
+    A metric built from these is smooth by construction, so refining the
+    lattice resamples the same function rather than adding free parameters.
+    That is what gives the optimised metric a continuum limit.
+    """
+    x = torch.linspace(-1.0, 1.0, n_points, dtype=dtype, device=device)
+    basis = [torch.ones_like(x), x]
+    while len(basis) < n_modes:
+        basis.append(2 * x * basis[-1] - basis[-2])
+    return torch.stack(basis[:n_modes], dim=1)          # (n_points, n_modes)
+
 
 def run_schwarzschild_test(cfg: dict) -> dict:
     """
@@ -206,8 +227,37 @@ def run_schwarzschild_test(cfg: dict) -> dict:
     # ------------------------------------------------------------------
     # 4.  Set up PyTorch optimizer on the full metric field
     # ------------------------------------------------------------------
+    use_cheb = cfg.get("basis", "chebyshev") == "chebyshev"
+    if use_cheb:
+        n_modes = int(cfg.get("modes", 8))
+        cheb = chebyshev_basis(cfg["lattice_size"], n_modes, dtype, device)
+        coeffs = torch.zeros(n_modes, 2, dtype=dtype, device=device,
+                             requires_grad=True)
+        minkowski = torch.zeros(cfg["lattice_size"], 2, 2, dtype=dtype, device=device)
+        minkowski[:, 0, 0] = -1.0
+        minkowski[:, 1, 1] = 1.0
+        params = [coeffs]
+        print(f"Parameterisation: chebyshev, {n_modes} modes "
+              f"({2 * n_modes} free parameters vs "
+              f"{4 * cfg['lattice_size']} pointwise)\n")
+    else:
+        params = [geometry.metric_field]
+        print("Parameterisation: POINTWISE — no continuum limit; this "
+              "reproduces the withdrawn v1.3 numbers and its output must not "
+              "be reported as a result.\n")
+
+    def current_metric():
+        """The metric the loss is evaluated on, as a function of the params."""
+        if not use_cheb:
+            return geometry.metric_field
+        pert = cheb @ coeffs                       # (N, 2)
+        g = minkowski.clone()
+        g[:, 0, 0] = minkowski[:, 0, 0] + pert[:, 0]
+        g[:, 1, 1] = minkowski[:, 1, 1] + pert[:, 1]
+        return g
+
     optimizer_torch = torch.optim.Adam(
-        [geometry.metric_field],
+        params,
         lr=cfg["learning_rate"],
     )
     # Cosine annealing: smoothly reduce lr to lr/10 over all iterations
@@ -259,13 +309,14 @@ def run_schwarzschild_test(cfg: dict) -> dict:
 
         # --- Einstein tensor for the full lattice in one shot ---
         # G shape: (N, dim, dim)
-        G_all = geometry.compute_einstein_tensor()   # uses metric_field
+        g_now = current_metric()
+        G_all = geometry.compute_einstein_tensor(g_now)
 
         # --- Stress tensor T_munu from the honest entropy field S(r) ---
         # ∂_t S = 0 (static source), ∂_r S = dx-normalized lattice finite
         # difference; contractions use g^μν.  For FAULKNER this uses the
         # real spatial Hessian ∂²S/∂r², not an outer-product surrogate.
-        g = geometry.metric_field
+        g = g_now
         T_all = coupling.compute_stress_tensor_field(
             S_field, metric_field=g, formulation=cfg["stress_form"], gates=gates
         )
@@ -285,12 +336,18 @@ def run_schwarzschild_test(cfg: dict) -> dict:
 
         # Backpropagate and update full metric field
         total_loss.backward()
-        torch.nn.utils.clip_grad_norm_([geometry.metric_field], cfg["grad_clip"])
+        # clip whatever is actually being optimised — under a non-pointwise
+        # parameterisation geometry.metric_field carries no gradient, so
+        # clipping it silently leaves the real parameters unclipped
+        torch.nn.utils.clip_grad_norm_(params, cfg["grad_clip"])
         optimizer_torch.step()
         scheduler.step()
 
-        # Enforce metric symmetry after each step
-        geometry._enforce_symmetry()
+        # Enforce metric symmetry after each step. (The Chebyshev metric is
+        # diagonal by construction, so this applies only to the pointwise
+        # path, where every component is an independent parameter.)
+        if not use_cheb:
+            geometry._enforce_symmetry()
 
         # --- Gate the OPTIMISED metric, periodically ---
         # This is the check that can actually fail: the optimiser is free to
@@ -298,9 +355,16 @@ def run_schwarzschild_test(cfg: dict) -> dict:
         # its curvature is not approximating anything and the run's numbers
         # are meaningless. Validating only the flat starting metric would be
         # decorative.
+        #
+        # Note the metric is passed explicitly: under a non-pointwise
+        # parameterisation `geometry.metric_field` is NOT the optimised
+        # object, and validating it would repeat the "gate the wrong thing"
+        # mistake this machinery exists to prevent.
         if (iteration + 1) % cfg.get("validate_every", 100) == 0:
             geometry._clear_cache()
-            geometry.validate_curvature(gates=gates)
+            with torch.no_grad():
+                geometry.validate_curvature(metric=current_metric().detach(),
+                                            gates=gates)
 
         loss_val = total_loss.item()
         trace_val = float(avg_trace.item())
@@ -321,6 +385,11 @@ def run_schwarzschild_test(cfg: dict) -> dict:
     # 6.  Extract final metric profile and compare to Schwarzschild
     # ------------------------------------------------------------------
     geometry.metric_field.requires_grad_(False)
+    with torch.no_grad():
+        final_metric = current_metric().detach()
+        # keep the engine's field in sync so downstream helpers see the
+        # metric the numbers were actually extracted from
+        geometry.metric_field.copy_(final_metric)
 
     # ------------------------------------------------------------------
     #  Post-flight gates on the FINAL metric — the one whose numbers get
@@ -330,7 +399,8 @@ def run_schwarzschild_test(cfg: dict) -> dict:
     geometry._clear_cache()
     postflight = ValidationReport()
     try:
-        geometry.validate_curvature(gates=gates, report=postflight)
+        geometry.validate_curvature(metric=final_metric, gates=gates,
+                                    report=postflight)
         print("\nPost-optimization validation:")
         print(postflight.summary())
     except ValidationError as exc:
@@ -540,6 +610,13 @@ def parse_args():
     parser.add_argument("--interpolation", type=str, default=DEFAULT_CFG["interpolation"],
                         choices=["linear", "steps"],
                         help="S(r) interpolation between qubit positions")
+    parser.add_argument("--basis", type=str, default=DEFAULT_CFG["basis"],
+                        choices=["chebyshev", "pointwise"],
+                        help="metric parameterisation; pointwise has no "
+                             "continuum limit and is kept only to reproduce "
+                             "the withdrawn v1.3 numbers")
+    parser.add_argument("--modes", type=int, default=DEFAULT_CFG["modes"],
+                        help="number of Chebyshev modes (ignored if pointwise)")
     parser.add_argument("--formulation", type=str, default="massless",
                         choices=["jacobson", "lagrangian", "massless", "canonical", "faulkner"],
                         help="Stress tensor formulation")
@@ -564,6 +641,8 @@ def main():
     cfg["num_qubits"] = args.qubits
     cfg["interpolation"] = args.interpolation
     cfg["stress_form"] = StressTensorFormulation(args.formulation)
+    cfg["basis"] = args.basis
+    cfg["modes"] = args.modes
     cfg["plot"] = not args.no_plot
     cfg["save_dir"] = args.save_dir
     if args.device == "auto":
