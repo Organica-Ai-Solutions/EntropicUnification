@@ -94,6 +94,35 @@ independent parameter under a bare residual loss, `sum((G - T)^2)`, with
 sits unused in this same repository. Adam minimises the residual pointwise
 with no requirement that the result remain a field.
 
+**Smoothness regularization does not fix it.** The obvious remedy is to couple
+neighbouring sites, so `scripts/smoothness_sweep.py` adds
+$\lambda \sum (\partial^2 g)^2$ to the loss and sweeps $\lambda$:
+
+| $\lambda$ | N=32 | N=64 | N=128 | 32→64 | 64→128 | verdict |
+|---|---|---|---|---|---|---|
+| 0 | 3.94e-1 | 2.70e-1 | 1.77e-1 | 1.46 | 1.53 | unresolved |
+| 1e-2 | 2.19e-1 | 1.85e-1 | 1.52e-1 | 1.18 | 1.22 | unresolved |
+| 1 | 9.47e-2 | 1.24e-1 | 9.35e-2 | 0.77 | 1.32 | unresolved |
+| 1e2 | 2.08e-3 | 3.36e-2 | 4.95e-2 | 0.06 | 0.68 | unresolved |
+| 1e4 | 3.89e-4 | 1.13e-3 | 3.73e-3 | 0.34 | 0.30 | unresolved |
+
+No $\lambda$ reaches the ratio of 2 that would indicate a continuum limit. The
+penalty scales roughness down without changing how it behaves under
+refinement, and above $\lambda \approx 1$ the ratios in fact *invert* — eps
+grows with resolution, because the per-site penalty weakens relative to the
+residual as the lattice refines. So the useful $\lambda$ is a function of N,
+which is another way of saying there is no continuum limit to find.
+
+Note the trap this exposes. At $\lambda = 10^2$, N=32, eps = 2.08e-3 — a clean
+**pass**, two orders under tolerance. A single-resolution check would have
+reported success. It is an artifact of the penalty flattening the field at
+that particular lattice size, visible only under refinement.
+
+This is why the conclusion is stronger than "the experiment was misconfigured":
+the bare loss is not the whole problem, and the obvious fix does not work.
+Pointwise optimisation of a metric against a curvature residual does not, in
+this setup, produce a field with a continuum limit.
+
 Caveat, stated for fairness: every lattice size was run for the same iteration
 count rather than to a matched convergence criterion. The ratios are stable
 across it50–it400, so the conclusion is not an artifact of that choice, but a
@@ -111,7 +140,14 @@ in code that ran without objection.
 
 **Entanglement scaling** (1000 iterations, lattice 32): no clean $r_s \propto S$ relation — a through-origin linear fit gives negative $R^2$. Short runs (50 iterations) look linear, but the relationship does not stabilize with convergence. The v1.2 "genuinely non-linear, monotonically decreasing ratio" claim also does not reproduce.
 
-In short: **the current honest 1+1D toy shows a weak, partial signature at best.** This is the real starting point. (Recall that in 1+1D the continuum Einstein tensor vanishes identically — a meaningful H3 test needs the framework extended to ≥ 3+1D first.)
+~~In short: the current honest 1+1D toy shows a weak, partial signature at best.~~ **This summary is withdrawn too.** Both experiments above extract their numbers from an optimised metric with no continuum limit (see the banner at the top of this section), so neither supports a conclusion.
+
+Worth being precise about the asymmetry, because it is easy to get backwards:
+
+- The Schwarzschild result was a **weak positive** claim. Withdrawing it removes a claim, and nothing replaces it.
+- The scaling result was a **null** result — "no clean $r_s \propto S$ relation." Withdrawing that does *not* mean a relation exists. It means the experiment could not have detected one either way, so it is not evidence of absence any more than it was evidence of presence. A broken instrument reading zero is not a measurement of zero.
+
+(Recall also that in 1+1D the continuum Einstein tensor vanishes identically — a meaningful H3 test needs the framework extended to ≥ 3+1D first. That limitation is independent of, and survives, everything above.)
 
 ---
 

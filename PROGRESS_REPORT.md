@@ -112,8 +112,13 @@ gates were pointed at, the optimised metric failed `check_metric_resolved`
 (`scripts/convergence_test.py`) put the convergence ratio at **1.45** where a
 resolved field needs ~4 — so the field has no continuum limit and its
 curvature approximates nothing. Cause: the experiment uses a bare pointwise
-residual loss with no neighbour coupling, while `metric_smoothness()` sits
-unused in the repo.
+residual loss with no neighbour coupling. **Adding that coupling does not fix
+it** — `scripts/smoothness_sweep.py` sweeps a second-difference penalty over
+five orders of magnitude and no value reaches a refinement ratio of 2; above
+λ≈1 the ratios invert, because the useful λ becomes a function of lattice
+size. So the problem is not merely a misconfigured experiment: pointwise
+optimisation of a metric against a curvature residual does not produce a field
+with a continuum limit in this setup.
 
 H1, H2 and H3 were already open. They remain open, and the framework now has
 **no quantitative result of its own that has passed its own gates.** That is
@@ -145,6 +150,12 @@ framework can currently perform.
 
 ## Next steps, in order of honesty-weighted value
 
+0. **Find a parameterisation with a continuum limit by construction** — e.g.
+   optimise a handful of coefficients of a smooth basis (splines, Chebyshev)
+   instead of N independent lattice values. The refinement test
+   (`scripts/convergence_test.py`) is the acceptance criterion. Until
+   something passes it, no number this framework produces means anything,
+   which makes this prior to every item below.
 1. **≥3+1D.** Everything else is secondary. Until then no result here bears on
    the conjecture.
 2. **Make dimension an output, not an input.** A framework claiming geometry
