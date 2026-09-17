@@ -269,8 +269,16 @@ A tracelessness diagnostic runs automatically every simulation. Zero = massless 
 |---|---|---|---|
 | `LAGRANGIAN` | Hilbert variation of covariant action | No (massive analog) | Baseline derivation |
 | `MASSLESS` | Lagrangian + E=pc constraint ($1/n$) | Yes | Default — physically motivated |
-| `FAULKNER` | Linearized Einstein from Hessian: $\nabla_\mu\nabla_\nu S - (\Box S)g_{\mu\nu}$ | No — trace is $(1-n)\Box S$ | Closest to Faulkner (2013) |
+| `FAULKNER` | Linearized Einstein from Hessian: $\nabla_\mu\nabla_\nu S - (\Box S)g_{\mu\nu}$ | No — trace is $(1-n)\Box S$ | **Ill-posed on the default source — see below** |
 
+> **FAULKNER is not usable on the default entropy field (v1.4.5).** It needs
+> $\partial^2 S$, and $S(r)$ with `interpolation="linear"` is piecewise
+> linear, so $\partial^2 S$ is a sum of delta functions that diverges as
+> $1/dx$: measured max$|\partial^2 S|$ = 65.8, 271, 1104, 4452, 17876 at
+> N = 32…512. Refining the lattice makes it worse without bound. Use a smooth
+> interpolation, or a formulation needing only $\nabla S$. Details in
+> [docs/VALIDATION.md](docs/VALIDATION.md).
+>
 > **Corrected in v1.4.** This table previously listed FAULKNER as traceless.
 > It is not: the trace of $\nabla_\mu\nabla_\nu S - (\Box S)g_{\mu\nu}$ is
 > $(1-n)\Box S$, which vanishes only in $n=1$ — the formula printed in the row

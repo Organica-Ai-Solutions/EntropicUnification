@@ -1,7 +1,7 @@
 {
-  "training_time": 0.037358760833740234,
+  "training_time": 0.030476093292236328,
   "converged": false,
   "steps": 3,
-  "final_loss": 0.30900265011031286,
-  "best_loss": 0.30900265011031286
+  "final_loss": 0.10040058484954846,
+  "best_loss": 0.10040058484954846
 }

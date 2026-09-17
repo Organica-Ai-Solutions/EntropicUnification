@@ -539,6 +539,51 @@ def converges_under_refinement(
     return _fail(cfg, r)
 
 
+def check_source_differentiable(
+    second_derivative_scale: Dict[int, float],
+    cfg: GateConfig,
+    report: Optional[ValidationReport] = None,
+) -> GateResult:
+    """Gate: the entropy field must be differentiable to the order used.
+
+    S(r) built with interpolation="linear" is piecewise linear — C0 but not
+    C1, with kinks at the qubit positions. Its first derivative is ambiguous
+    at those kinks (finite differences just pick a resolution of the
+    ambiguity), and its second derivative is a sum of delta functions that
+    diverges as 1/dx under refinement.
+
+    That makes the FAULKNER formulation, which needs d2S, ill-posed on the
+    default source: refining the lattice makes the answer worse without
+    bound. Measured max|d2S| on the default GHZ profile — 65.8, 271, 1104,
+    4452, 17876 at N = 32..512, i.e. 4x per doubling.
+
+    Args:
+        second_derivative_scale: {lattice_size: max|d2S|} at two or more
+            resolutions. A well-posed source gives a bounded sequence.
+    """
+    sizes = sorted(second_derivative_scale)
+    if len(sizes) < 2:
+        r = GateResult("source_differentiable", True, None, None,
+                       "need two resolutions to judge; not checked")
+        if report:
+            report.add(r)
+        return r
+    coarse, fine = second_derivative_scale[sizes[0]], second_derivative_scale[sizes[-1]]
+    growth = fine / (coarse + 1e-300)
+    ok = growth <= 1.5
+    r = GateResult(
+        "source_differentiable", ok, growth, 1.5,
+        f"max|d2S| grew {growth:.2f}x from N={sizes[0]} to N={sizes[-1]}"
+        + ("" if ok else " — the source is not twice differentiable, so any "
+                         "formulation using d2S (FAULKNER) is ill-posed on it: "
+                         "refining the lattice makes the answer diverge. Use a "
+                         "smooth interpolation, or a formulation needing only dS."),
+    )
+    if report:
+        report.add(r)
+    return _fail(cfg, r)
+
+
 def check_finite(
     name: str,
     tensor: torch.Tensor,
@@ -628,7 +673,8 @@ __all__ = [
     "ValidationReport", "check_entropy_provenance", "check_tracelessness",
     "check_trace_identity",
     "check_riemann_identities", "check_metric_resolved",
-    "converges_under_refinement", "check_finite",
+    "converges_under_refinement", "check_source_differentiable",
+    "check_finite",
     "check_meaningful_dimension",
     "check_entropy_field_sanity",
 ]

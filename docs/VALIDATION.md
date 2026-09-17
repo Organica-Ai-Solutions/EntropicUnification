@@ -179,6 +179,40 @@ Such a field produces identity violations that are perfectly "consistent with
 truncation error" (ratio ≈ 1.1), so the Riemann gate waves it through. This
 gate is what stops it.
 
+### `check_source_differentiable`
+
+The entropy field must be differentiable to the order the formulation uses.
+
+`S(r)` with `interpolation="linear"` is piecewise linear — C0 but not C1,
+with kinks at the qubit positions. Two consequences, both measured:
+
+**Its first derivative is ambiguous at the kinks.** Finite differences pick
+an arbitrary resolution of that ambiguity, and which one depends on the
+stencil. Switching the boundary stencils in v1.4.4 changed `||dS||^2` on the
+default GHZ profile by a factor of 1.84–1.97. Neither value is more correct
+than the other; the underlying function simply is not differentiable there.
+With `interpolation="steps"` the two stencils agree to 1.00, because the
+field is locally constant where they differ.
+
+**Its second derivative does not converge at all.** `d2S` of a C0 function is
+a sum of delta functions at the kinks, so it diverges as `1/dx`:
+
+| N | 32 | 64 | 128 | 256 | 512 |
+|---|---|---|---|---|---|
+| max\|d2S\| | 65.8 | 271 | 1104 | 4452 | 17876 |
+
+That is 4x per lattice doubling, without bound. **The FAULKNER formulation
+uses `d2S`, so it is ill-posed on the default source** — refining the lattice
+makes the answer worse, not better. This is not a bug introduced by any
+change in this repository; it is a property of taking a second derivative of
+a piecewise-linear field, and it was invisible while nobody checked.
+
+The fix is to give the source the regularity the formulation requires: a
+smooth interpolation (spline) so `d2S` is defined, an analytic derivative
+computed from the known piecewise structure, or a formulation that needs only
+`dS`. Until then, treat FAULKNER results on a linearly interpolated field as
+meaningless regardless of what any other gate says.
+
 ### `check_finite`
 
 No NaN or Inf may enter the loss. A diverged optimiser otherwise runs to

@@ -124,6 +124,35 @@ H1, H2 and H3 were already open. They remain open, and the framework now has
 **no quantitative result of its own that has passed its own gates.** That is
 the accurate status.
 
+## v1.4.4 / v1.4.5 — two defects in the numerics
+
+**Boundary finite differences were first order** (v1.4.4). The interior used
+O(dx^2) central differences while the edges used two-point one-sided
+differences at O(dx); the lower order dominated the global error norm,
+degrading the scheme to roughly O(dx^1.5). Every curvature quantity flows
+through that function, so it cost half an order of accuracy in every number
+this project has produced. Fixed and verified against analytic derivatives —
+edge error now falls 4.16x (d1) and 4.06x (d2) per doubling.
+
+**The entropy source is not differentiable to the order used** (v1.4.5).
+`S(r)` with `interpolation="linear"` is piecewise linear, so:
+
+- `dS` is ambiguous at the kinks. The v1.4.4 stencil change moved `||dS||^2`
+  by a factor of ~1.9, and neither value is more correct than the other —
+  the function simply is not differentiable there. With `"steps"` the two
+  stencils agree exactly (ratio 1.00).
+- `d2S` diverges as 1/dx (65.8 -> 17876 for N = 32 -> 512), which makes the
+  **FAULKNER formulation ill-posed on the default source**.
+
+The second is not a regression; it is a pre-existing property that nothing
+had ever checked. `check_source_differentiable` now catches it.
+
+Note the sequencing. The boundary bug was found only because a gate failure
+was investigated instead of tolerated — the convenient reading was "my
+tolerance is too tight", which was even partly true. The source defect was
+found only because fixing the boundary moved a number that should not have
+moved.
+
 ## Withdrawn v1.3 results (kept for the record)
 
 **Schwarzschild test** (1000 iterations, lattice 64, MASSLESS): 2/3 qualitative
