@@ -104,7 +104,22 @@ limitations rather than quietly dropped:
 | provenance is attestation + tamper-evidence, not proof | documented |
 | FAULKNER used the coordinate Hessian, not the covariant one | **fixed in v1.4** — the Christoffel term is included; flat metrics agree exactly, curved ones differ by ~0.2%, and `grad_0 grad_0 S` (previously forced to zero) is nonzero |
 
-## Honest results
+## v1.3 results withdrawn (v1.4.2)
+
+The v1.3 numbers below are **withdrawn**. On the first experiment the v1.4
+gates were pointed at, the optimised metric failed `check_metric_resolved`
+(eps = 1.20e-01 vs 2e-2), and a refinement sweep
+(`scripts/convergence_test.py`) put the convergence ratio at **1.45** where a
+resolved field needs ~4 — so the field has no continuum limit and its
+curvature approximates nothing. Cause: the experiment uses a bare pointwise
+residual loss with no neighbour coupling, while `metric_smoothness()` sits
+unused in the repo.
+
+H1, H2 and H3 were already open. They remain open, and the framework now has
+**no quantitative result of its own that has passed its own gates.** That is
+the accurate status.
+
+## Withdrawn v1.3 results (kept for the record)
 
 **Schwarzschild test** (1000 iterations, lattice 64, MASSLESS): 2/3 qualitative
 checks. `g_tt` has the right sign structure and rough asymptotic flatness;

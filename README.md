@@ -58,7 +58,54 @@ python examples/scaling_experiment.py --iterations 1000
 
 and report whatever they produce — including a null result. A negative outcome under the honest implementation is a meaningful data point about the conjecture in this toy setting.
 
-### First v1.3 runs (July 2026, CPU, honest pipeline)
+### v1.3 run numbers are WITHDRAWN (v1.4.2, September 2026)
+
+**The Pearson correlations below do not survive the v1.4 gates. Do not cite them.**
+
+On the first experiment the gates were ever pointed at, `examples/schwarzschild_test.py`
+aborted at iteration 100: `check_metric_resolved` failed at
+eps = 1.20e-01 against a tolerance of 2e-2, where eps = ||d2g|| / ||g|| is the
+relative second difference of the metric field.
+
+A single-resolution threshold cannot distinguish "unresolved" from "varies
+fast", so this was checked by refinement
+(`scripts/convergence_test.py`). A smooth field's eps falls ~4x per lattice
+doubling. Measured:
+
+| iteration | 32→64 | 64→128 | 128→256 |
+|---|---|---|---|
+| 50 | 1.54 | 1.21 | 1.42 |
+| 100 | 1.46 | 1.30 | 1.55 |
+| 200 | 1.60 | 1.46 | 1.42 |
+| 400 | 1.46 | 1.53 | 1.50 |
+
+Mean ratio **1.45**, i.e. eps ∝ dx^0.54, with no drift toward 4 as N grows.
+eps also *increases* monotonically with optimization at every lattice size,
+and exceeds tolerance at every resolution tested, including N=256.
+
+**The optimised metric therefore has no continuum limit.** Its discrete
+curvature is not approximating the curvature of anything, so a correlation
+between it and a Schwarzschild profile measures the shape of a pointwise-
+optimised array indexed by r, not a recovered spacetime geometry.
+
+Identified cause: the experiment optimises each of the N lattice sites as an
+independent parameter under a bare residual loss, `sum((G - T)^2)`, with
+**nothing coupling neighbours** — while `LossFunctions.metric_smoothness()`
+sits unused in this same repository. Adam minimises the residual pointwise
+with no requirement that the result remain a field.
+
+Caveat, stated for fairness: every lattice size was run for the same iteration
+count rather than to a matched convergence criterion. The ratios are stable
+across it50–it400, so the conclusion is not an artifact of that choice, but a
+convergence-matched sweep has not been done.
+
+This is the third correction to this project's claims, after the v1.2
+retraction and the FAULKNER tracelessness error. In each case the defect was
+in code that ran without objection.
+
+---
+
+### First v1.3 runs (July 2026, CPU, honest pipeline) — WITHDRAWN, see above
 
 **Schwarzschild test** (1000 iterations, lattice 64, MASSLESS): 2/3 qualitative checks pass — $g_{tt}$ has the correct sign structure (less negative toward the source) and rough asymptotic flatness, but $g_{rr}$ moves the *wrong* way. Pearson correlation with a fitted Schwarzschild profile: $r(g_{tt}) = 0.50$, $r(g_{rr}) = 0.02$. The v1.2 claim of 0.78 does not survive the corrections. Tracelessness violation is now at machine precision (~1e-17), as it should be by construction.
 
