@@ -150,12 +150,18 @@ framework can currently perform.
 
 ## Next steps, in order of honesty-weighted value
 
-0. **Find a parameterisation with a continuum limit by construction** — e.g.
-   optimise a handful of coefficients of a smooth basis (splines, Chebyshev)
-   instead of N independent lattice values. The refinement test
-   (`scripts/convergence_test.py`) is the acceptance criterion. Until
-   something passes it, no number this framework produces means anything,
-   which makes this prior to every item below.
+0. ~~Find a parameterisation with a continuum limit by construction.~~
+   **Done** (`scripts/parameterisation_test.py`): a Chebyshev-coefficient
+   metric converges at exactly second order — ratios 4.01 / 3.96 / 3.81 at
+   k = 4 / 8 / 16 with the optimiser held fixed. The representation is no
+   longer the blocker.
+1. **Port `schwarzschild_test.py` and `scaling_experiment.py` onto the
+   Chebyshev basis and re-run.** This is now the immediate next step: the
+   framework has a configuration with a continuum limit but has never been
+   run in it, so it still has no number that passes its own gates. Report the
+   fit loss alongside eps — k=4 passes the smoothness gate most cleanly while
+   fitting G = T about 25x worse than k=16, and a smooth metric that does not
+   satisfy the field equation recovers nothing.
 1. **≥3+1D.** Everything else is secondary. Until then no result here bears on
    the conjecture.
 2. **Make dimension an output, not an input.** A framework claiming geometry

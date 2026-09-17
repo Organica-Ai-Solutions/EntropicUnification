@@ -123,6 +123,36 @@ the bare loss is not the whole problem, and the obvious fix does not work.
 Pointwise optimisation of a metric against a curvature residual does not, in
 this setup, produce a field with a continuum limit.
 
+**The parameterisation is the cause, and it is fixable.** Expanding the metric
+in a small Chebyshev basis and optimising the *coefficients* — smooth by
+construction — restores convergence. Optimising once and resampling the same
+coefficient vector (`scripts/parameterisation_test.py`), so the optimiser is
+held fixed and only discretisation varies:
+
+| modes $k$ | 32→64 | 64→128 | 128→256 | 256→512 |
+|---|---|---|---|---|
+| 4 | 4.08 | 4.04 | 4.02 | **4.01** |
+| 8 | 3.60 | 3.82 | 3.91 | **3.96** |
+| 16 | 2.58 | 3.25 | 3.62 | **3.81** |
+
+Textbook second-order convergence — every mode count approaches 4
+monotonically, with higher $k$ approaching more slowly because $T_{k-1}$
+oscillates $k-1$ times and needs a finer lattice to resolve.
+
+Two things follow. First, the pointwise field's failure is real and specific:
+the same measurement machinery that reports 1.45 for it reports 4.01 here, so
+`metric_truncation_scale` and the curvature code are behaving exactly as
+theory requires and the earlier non-convergence is not instrument error.
+Second, the framework *can* produce a metric with a continuum limit — it has
+simply never been run in a configuration that does.
+
+What this does **not** establish: that any such run recovers Schwarzschild, or
+anything else. It fixes the representation, not the physics. Note also the
+tension the sweep exposed — $k=4$ passes the gate most cleanly but fits
+$G = T$ about 25x worse than $k=16$ (loss 987 vs 39). A smooth metric that
+does not satisfy the field equation is no more a recovery than a rough one
+that does, so any future claim has to report both numbers together.
+
 Caveat, stated for fairness: every lattice size was run for the same iteration
 count rather than to a matched convergence criterion. The ratios are stable
 across it50–it400, so the conclusion is not an artifact of that choice, but a
